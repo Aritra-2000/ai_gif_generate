@@ -31,7 +31,6 @@ export async function POST(req: NextRequest) {
         description,
         caption,
         prompt,
-        status: 'pending',
       },
     });
     return NextResponse.json({ gif });

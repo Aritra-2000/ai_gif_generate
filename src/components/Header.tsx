@@ -5,11 +5,23 @@ import { Button } from "./ui/Button";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useToast } from "../context/ToastContext";
+import { useState } from "react";
 
 export default function Header() {
   const { user, logout, login } = useAuth();
   const pathname = usePathname();
   const { showToast } = useToast();
+  const [imgError, setImgError] = useState(false);
+
+  function getInitials(nameOrEmail: string) {
+    if (!nameOrEmail) return "";
+    const name = nameOrEmail.split("@")[0];
+    const parts = name.split(" ");
+    if (parts.length === 1) {
+      return parts[0].slice(0, 2).toUpperCase();
+    }
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
 
   const handleLogout = () => {
     logout();
@@ -34,12 +46,21 @@ export default function Header() {
           {user ? (
             <>
               <span className="text-gray-700 font-medium flex items-center space-x-2">
-                {user.image && (
+                {user.image && !imgError ? (
                   <Link href="/profile">
-                    <img src={user.image} alt={user.name} className="w-8 h-8 rounded-full mr-2 cursor-pointer border-2 border-blue-500 hover:border-purple-600 transition" />
+                    <img
+                      src={user.image}
+                      alt={user.name || user.email}
+                      className="w-8 h-8 rounded-full mr-2 cursor-pointer border-2 border-blue-500 hover:border-purple-600 transition"
+                      onError={() => setImgError(true)}
+                    />
                   </Link>
+                ) : (
+                  <div className="w-8 h-8 rounded-full mr-2 flex items-center justify-center bg-gradient-to-br from-blue-500 to-purple-600 text-white font-bold text-lg border-2 border-blue-500">
+                    {getInitials(user.name || user.email)}
+                  </div>
                 )}
-                <span>{user.name}</span>
+                <span>{user.name || user.email}</span>
               </span>
               <Button variant="secondary" size="sm" onClick={handleLogout}>
                 Logout
