@@ -12,8 +12,12 @@ import GifPreviewSettings from '@/components/GifPreviewSettings'
 import GifPreview from '@/components/GifPreview'
 import GifHistory from '@/components/GifHistory'
 import LoadingState from '@/components/LoadingState'
+import Header from "@/components/Header"
+import RequireAuth from "@/components/RequireAuth"
+import { useSession } from "next-auth/react"
 
 export default function Home() {
+  const { status } = useSession()
   const [videoFile, setVideoFile] = useState<File | null>(null)
   const [gifBlob, setGifBlob] = useState<Blob | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
@@ -125,17 +129,6 @@ export default function Home() {
       setGifBlob(gif)
       console.log('GIF created successfully')
 
-      // Auto-download the GIF
-      const url = URL.createObjectURL(gif)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `gif-${Date.now()}.gif`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
-      console.log('GIF downloaded successfully')
-
     } catch (error) {
       console.error("Error generating GIF:", error)
       if (error instanceof Error) {
@@ -233,235 +226,191 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
-      {/* Header */}
-      <div className="bg-white/80 backdrop-blur-sm border-b border-white/20 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
-                <Sparkles className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                  FocusFlow
-                </h1>
-                <p className="text-sm text-gray-500">GIF Generator</p>
-              </div>
-            </div>
-            {videoFile && (
-              <button
-                onClick={resetAll}
-                className="flex items-center space-x-2 px-4 py-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <RotateCcw className="w-4 h-4" />
-                <span className="text-sm font-medium">Reset</span>
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Hero Section */}
-        {!videoFile && (
-          <div className="text-center mb-12">
-            <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl mb-6">
-              <Video className="w-10 h-10 text-white" />
-            </div>
-            <h2 className="text-4xl font-bold text-gray-900 sm:text-5xl mb-4">
-              Transform Videos into
-              <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                {" "}
-                Stunning GIFs
-              </span>
-            </h2>
-            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              Upload your video, customize settings, and create high-quality GIFs in seconds
-            </p>
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Left Column - Controls */}
-          <div className="space-y-6">
-            {/* Upload Section */}
-            <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-8 hover:shadow-2xl transition-all duration-300">
-              <div className="flex items-center space-x-3 mb-6">
-                <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <Upload className="w-5 h-5 text-blue-600" />
-                </div>
-                <h3 className="text-lg font-semibold text-gray-900">Upload Video</h3>
-              </div>
-              <VideoUpload onUpload={handleVideoUpload} />
-            </div>
-
-            {videoFile && (
-              <>
-                {/* Video Preview */}
-                <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-8 hover:shadow-2xl transition-all duration-300">
-                  <div className="flex items-center space-x-3 mb-6">
-                    <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
-                      <Play className="w-5 h-5 text-green-600" />
-                    </div>
-                    <h3 className="text-lg font-semibold text-gray-900">Video Preview</h3>
+      {status !== "loading" && <Header />}
+      <RequireAuth>
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Left Column - Controls */}
+            <div className="space-y-6">
+              {/* Upload Section */}
+              <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-8 hover:shadow-2xl transition-all duration-300">
+                <div className="flex items-center space-x-3 mb-6">
+                  <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                    <Upload className="w-5 h-5 text-blue-600" />
                   </div>
-                  <VideoPreview file={videoFile} />
+                  <h3 className="text-lg font-semibold text-gray-900">Upload Video</h3>
                 </div>
+                <VideoUpload onUpload={handleVideoUpload} />
+              </div>
 
-                {/* Settings Section */}
-                <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-8 hover:shadow-2xl transition-all duration-300">
-                  <div className="flex items-center space-x-3 mb-6">
-                    <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
-                      <Settings className="w-5 h-5 text-orange-600" />
+              {videoFile && (
+                <>
+                  {/* Video Preview */}
+                  <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-8 hover:shadow-2xl transition-all duration-300">
+                    <div className="flex items-center space-x-3 mb-6">
+                      <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
+                        <Play className="w-5 h-5 text-green-600" />
+                      </div>
+                      <h3 className="text-lg font-semibold text-gray-900">Video Preview</h3>
                     </div>
-                    <h3 className="text-lg font-semibold text-gray-900">GIF Settings</h3>
+                    <VideoPreview file={videoFile} />
                   </div>
-                  <GifSettings onSettingsChange={handleSettingsChange} />
-                </div>
 
-                {/* Preview Settings */}
-                <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-8 hover:shadow-2xl transition-all duration-300">
-                  <div className="flex items-center space-x-3 mb-6">
-                    <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center">
-                      <Sparkles className="w-5 h-5 text-indigo-600" />
+                  {/* Settings Section */}
+                  <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-8 hover:shadow-2xl transition-all duration-300">
+                    <div className="flex items-center space-x-3 mb-6">
+                      <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
+                        <Settings className="w-5 h-5 text-orange-600" />
+                      </div>
+                      <h3 className="text-lg font-semibold text-gray-900">GIF Settings</h3>
                     </div>
-                    <h3 className="text-lg font-semibold text-gray-900">Preview Settings</h3>
+                    <GifSettings onSettingsChange={handleSettingsChange} />
                   </div>
-                  <GifPreviewSettings
-                    videoFile={videoFile}
-                    settings={{
-                      fps: settings.fps,
-                      startTime: 0,
-                      endTime: settings.duration,
-                    }}
-                  />
-                </div>
 
-                {/* Generate Button */}
-                <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl shadow-xl p-8 text-white">
-                  <button
-                    onClick={handleGenerateGif}
-                    disabled={isGenerating || !videoFile}
-                    className="w-full rounded-xl bg-white/20 backdrop-blur-sm px-6 py-4 text-white font-semibold hover:bg-white/30 focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 focus:ring-offset-transparent disabled:opacity-50 transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98]"
-                  >
-                    {isGenerating ? (
-                      <span className="flex items-center justify-center space-x-3">
-                        <svg
-                          className="animate-spin h-5 w-5 text-white"
-                          xmlns="http://www.w3.org/2000/svg"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                        >
-                          <circle
-                            className="opacity-25"
-                            cx="12"
-                            cy="12"
-                            r="10"
-                            stroke="currentColor"
-                            strokeWidth="4"
-                          ></circle>
-                          <path
-                            className="opacity-75"
-                            fill="currentColor"
-                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                          ></path>
-                        </svg>
-                        <span>Generating Magic... {progress}%</span>
-                      </span>
-                    ) : (
-                      <span className="flex items-center justify-center space-x-3">
-                        <Sparkles className="w-5 h-5" />
-                        <span>{videoFile ? "Generate GIF" : "Upload a video first"}</span>
-                      </span>
+                  {/* Preview Settings */}
+                  <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-8 hover:shadow-2xl transition-all duration-300">
+                    <div className="flex items-center space-x-3 mb-6">
+                      <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center">
+                        <Sparkles className="w-5 h-5 text-indigo-600" />
+                      </div>
+                      <h3 className="text-lg font-semibold text-gray-900">Preview Settings</h3>
+                    </div>
+                    <GifPreviewSettings
+                      videoFile={videoFile}
+                      settings={{
+                        fps: settings.fps,
+                        startTime: 0,
+                        endTime: settings.duration,
+                      }}
+                    />
+                  </div>
+
+                  {/* Generate Button */}
+                  <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl shadow-xl p-8 text-white">
+                    <button
+                      onClick={handleGenerateGif}
+                      disabled={isGenerating || !videoFile}
+                      className="w-full rounded-xl bg-white/20 backdrop-blur-sm px-6 py-4 text-white font-semibold hover:bg-white/30 focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 focus:ring-offset-transparent disabled:opacity-50 transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98]"
+                    >
+                      {isGenerating ? (
+                        <span className="flex items-center justify-center space-x-3">
+                          <svg
+                            className="animate-spin h-5 w-5 text-white"
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                          >
+                            <circle
+                              className="opacity-25"
+                              cx="12"
+                              cy="12"
+                              r="10"
+                              stroke="currentColor"
+                              strokeWidth="4"
+                            ></circle>
+                            <path
+                              className="opacity-75"
+                              fill="currentColor"
+                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                            ></path>
+                          </svg>
+                          <span>Generating Magic... {progress}%</span>
+                        </span>
+                      ) : (
+                        <span className="flex items-center justify-center space-x-3">
+                          <Sparkles className="w-5 h-5" />
+                          <span>{videoFile ? "Generate GIF" : "Upload a video first"}</span>
+                        </span>
+                      )}
+                    </button>
+
+                    {isGenerating && (
+                      <div className="mt-6">
+                        <LoadingState progress={progress} message="Creating your GIF..." />
+                      </div>
                     )}
-                  </button>
 
-                  {isGenerating && (
-                    <div className="mt-6">
-                      <LoadingState progress={progress} message="Creating your GIF..." />
-                    </div>
-                  )}
+                    {error && (
+                      <div className="mt-6 p-4 text-sm bg-red-500/20 backdrop-blur-sm border border-red-300/30 rounded-xl text-white">
+                        <div className="flex items-center space-x-2">
+                          <div className="w-4 h-4 bg-red-400 rounded-full flex-shrink-0" />
+                          <span>{error}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
 
-                  {error && (
-                    <div className="mt-6 p-4 text-sm bg-red-500/20 backdrop-blur-sm border border-red-300/30 rounded-xl text-white">
-                      <div className="flex items-center space-x-2">
-                        <div className="w-4 h-4 bg-red-400 rounded-full flex-shrink-0" />
-                        <span>{error}</span>
+            {/* Right Column - Results */}
+            <div className="space-y-6 lg:sticky lg:top-24 lg:h-fit">
+              {gifBlob ? (
+                <>
+                  {/* GIF Preview */}
+                  <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-8 hover:shadow-2xl transition-all duration-300">
+                    <div className="flex items-center space-x-3 mb-6">
+                      <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
+                        <Sparkles className="w-5 h-5 text-green-600" />
+                      </div>
+                      <h3 className="text-lg font-semibold text-gray-900">Your GIF</h3>
+                      <div className="ml-auto">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                          Ready
+                        </span>
                       </div>
                     </div>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* Right Column - Results */}
-          <div className="space-y-6 lg:sticky lg:top-24 lg:h-fit">
-            {gifBlob ? (
-              <>
-                {/* GIF Preview */}
-                <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-8 hover:shadow-2xl transition-all duration-300">
-                  <div className="flex items-center space-x-3 mb-6">
-                    <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
-                      <Sparkles className="w-5 h-5 text-green-600" />
-                    </div>
-                    <h3 className="text-lg font-semibold text-gray-900">Your GIF</h3>
-                    <div className="ml-auto">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                        Ready
-                      </span>
-                    </div>
+                    <GifPreview blob={gifBlob} />
                   </div>
-                  <GifPreview blob={gifBlob} />
-                </div>
 
-                {/* GIF Actions */}
-                <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-8 hover:shadow-2xl transition-all duration-300">
-                  <div className="flex items-center space-x-3 mb-6">
-                    <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                      <Download className="w-5 h-5 text-blue-600" />
+                  {/* GIF Actions */}
+                  <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-8 hover:shadow-2xl transition-all duration-300">
+                    <div className="flex items-center space-x-3 mb-6">
+                      <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                        <Download className="w-5 h-5 text-blue-600" />
+                      </div>
+                      <h3 className="text-lg font-semibold text-gray-900">Actions</h3>
                     </div>
-                    <h3 className="text-lg font-semibold text-gray-900">Actions</h3>
+                    <GifActions 
+                      blob={gifBlob} 
+                      onDownload={handleDownloadGif}
+                      onCopy={handleCopyGif}
+                      onShare={handleShareGif}
+                    />
                   </div>
-                  <GifActions 
-                    blob={gifBlob} 
-                    onDownload={handleDownloadGif}
-                    onCopy={handleCopyGif}
-                    onShare={handleShareGif}
-                  />
+                </>
+              ) : (
+                <div className="bg-white/50 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 p-12 text-center">
+                  <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                    <Sparkles className="w-8 h-8 text-gray-400" />
+                  </div>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">GIF Preview</h3>
+                  <p className="text-gray-500">Your generated GIF will appear here</p>
                 </div>
-              </>
-            ) : (
-              <div className="bg-white/50 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 p-12 text-center">
-                <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                  <Sparkles className="w-8 h-8 text-gray-400" />
-                </div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">GIF Preview</h3>
-                <p className="text-gray-500">Your generated GIF will appear here</p>
-              </div>
-            )}
+              )}
 
-            {/* History Section */}
-            <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-8 hover:shadow-2xl transition-all duration-300">
-              <div className="flex items-center space-x-3 mb-6">
-                <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
-                  <History className="w-5 h-5 text-gray-600" />
+              {/* History Section */}
+              <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-8 hover:shadow-2xl transition-all duration-300">
+                <div className="flex items-center space-x-3 mb-6">
+                  <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
+                    <History className="w-5 h-5 text-gray-600" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900">Recent GIFs</h3>
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900">Recent GIFs</h3>
+                <GifHistory onSelectGif={handleSelectGif} />
               </div>
-              <GifHistory onSelectGif={handleSelectGif} />
             </div>
           </div>
-        </div>
 
-        {/* Footer */}
-        <div className="mt-16 text-center">
-          <div className="inline-flex items-center space-x-2 text-gray-500">
-            <Sparkles className="w-4 h-4" />
-            <span className="text-sm">Made with love for creators</span>
+          {/* Footer */}
+          <div className="mt-16 text-center">
+            <div className="inline-flex items-center space-x-2 text-gray-500">
+              <Sparkles className="w-4 h-4" />
+              <span className="text-sm">Made with love for creators</span>
+            </div>
           </div>
-        </div>
-      </main>
+        </main>
+      </RequireAuth>
     </div>
   )
 }

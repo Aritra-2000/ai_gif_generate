@@ -15,7 +15,7 @@ export default function GifActions({ blob, onDownload, onCopy, onShare }: GifAct
         className="flex flex-col items-center justify-center p-4 bg-white/10 hover:bg-white/20 rounded-xl transition-colors"
       >
         <Download className="w-6 h-6 mb-2" />
-        <span className="text-sm font-medium">Download</span>
+        <span className="text-sm font-medium">Download GIF</span>
       </button>
 
       <button
