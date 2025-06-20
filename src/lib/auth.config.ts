@@ -6,8 +6,15 @@ import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import { prisma } from "@/lib/prisma";
 import { comparePassword } from "@/lib/auth";
 
+// Ensure environment variables are available
+const {
+  NEXTAUTH_SECRET,
+  GOOGLE_CLIENT_ID,
+  GOOGLE_CLIENT_SECRET,
+} = process.env;
+
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma),
+  ...(process.env.DATABASE_URL ? { adapter: PrismaAdapter(prisma) } : {}),
   providers: [
     CredentialsProvider({
       id: "credentials",
@@ -57,17 +64,19 @@ export const authOptions: NextAuthOptions = {
         }
       },
     }),
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-      authorization: {
-        params: {
-          prompt: "consent",
-          access_type: "offline",
-          response_type: "code"
+    ...(GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET ? [
+      GoogleProvider({
+        clientId: GOOGLE_CLIENT_ID,
+        clientSecret: GOOGLE_CLIENT_SECRET,
+        authorization: {
+          params: {
+            prompt: "consent",
+            access_type: "offline",
+            response_type: "code"
+          }
         }
-      }
-    }),
+      })
+    ] : []),
   ],
   session: {
     strategy: "jwt",
@@ -133,6 +142,6 @@ export const authOptions: NextAuthOptions = {
     signIn: "/login",
     error: "/login", // Redirect to login page on error
   },
-  secret: process.env.NEXTAUTH_SECRET,
+  secret: NEXTAUTH_SECRET,
   debug: process.env.NODE_ENV === "development",
 };
