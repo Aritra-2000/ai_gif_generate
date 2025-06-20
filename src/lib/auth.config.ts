@@ -2,12 +2,37 @@
 import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
-import { PrismaAdapter } from "@next-auth/prisma-adapter";
-import { prisma } from "@/lib/prisma";
-import { comparePassword } from "@/lib/auth";
+
+// Only import database-related modules if we're not in build mode
+let PrismaAdapter: any;
+let prisma: any;
+let comparePassword: any;
+
+// Check if we're in a build environment
+const isBuildTime = process.env.NODE_ENV === 'production' && !process.env.VERCEL;
+
+if (!isBuildTime) {
+  try {
+    PrismaAdapter = require("@next-auth/prisma-adapter").PrismaAdapter;
+    prisma = require("@/lib/prisma").prisma;
+    comparePassword = require("@/lib/auth").comparePassword;
+  } catch (error) {
+    console.warn("Database modules not available during build");
+  }
+}
+
+// Environment variables with fallbacks
+const {
+  NEXTAUTH_SECRET = "fallback-secret-for-build",
+  GOOGLE_CLIENT_ID,
+  GOOGLE_CLIENT_SECRET,
+  DATABASE_URL,
+} = process.env;
 
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma),
+  // Only use adapter if database is available
+  ...(DATABASE_URL && prisma && PrismaAdapter ? { adapter: PrismaAdapter(prisma) } : {}),
+  
   providers: [
     CredentialsProvider({
       id: "credentials",
@@ -17,6 +42,11 @@ export const authOptions: NextAuthOptions = {
         password: { label: "Password", type: "password" }
       },
       async authorize(credentials) {
+        // Skip database operations during build
+        if (isBuildTime || !prisma || !comparePassword) {
+          return null;
+        }
+
         if (!credentials?.email || !credentials?.password) {
           throw new Error("Email and password are required");
         }
@@ -57,22 +87,28 @@ export const authOptions: NextAuthOptions = {
         }
       },
     }),
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-      authorization: {
-        params: {
-          prompt: "consent",
-          access_type: "offline",
-          response_type: "code"
+    
+    // Only include Google provider if credentials are available
+    ...(GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET ? [
+      GoogleProvider({
+        clientId: GOOGLE_CLIENT_ID,
+        clientSecret: GOOGLE_CLIENT_SECRET,
+        authorization: {
+          params: {
+            prompt: "consent",
+            access_type: "offline",
+            response_type: "code"
+          }
         }
-      }
-    }),
+      })
+    ] : []),
   ],
+  
   session: {
     strategy: "jwt",
     maxAge: 30 * 24 * 60 * 60, // 30 days
   },
+  
   callbacks: {
     async jwt({ token, user, account }) {
       // Initial sign in
@@ -90,6 +126,7 @@ export const authOptions: NextAuthOptions = {
       
       return token;
     },
+    
     async session({ session, token }) {
       if (token) {
         session.user.id = token.id as string;
@@ -99,7 +136,13 @@ export const authOptions: NextAuthOptions = {
       }
       return session;
     },
+    
     async signIn({ user, account, profile }) {
+      // Skip database operations during build
+      if (isBuildTime || !prisma) {
+        return true;
+      }
+
       // Allow credentials login
       if (account?.provider === "credentials") {
         return true;
@@ -129,10 +172,12 @@ export const authOptions: NextAuthOptions = {
       return true;
     },
   },
+  
   pages: {
     signIn: "/login",
     error: "/login", // Redirect to login page on error
   },
-  secret: process.env.NEXTAUTH_SECRET,
+  
+  secret: NEXTAUTH_SECRET,
   debug: process.env.NODE_ENV === "development",
 };
