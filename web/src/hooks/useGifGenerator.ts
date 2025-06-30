@@ -1,6 +1,12 @@
 import { FFmpeg } from '@ffmpeg/ffmpeg'
 import { fetchFile, toBlobURL } from '@ffmpeg/util'
-import { FilterSettings } from '../components/GifFilters'
+
+interface FilterSettings {
+  width: number
+  height: number
+  filter: string
+  filterIntensity: number
+}
 
 interface GifSettings {
   duration: number

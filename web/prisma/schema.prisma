@@ -1,6 +1,3 @@
-// Prisma schema for FocusFlow
-// Datasource and generator
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -17,15 +14,14 @@ model Account {
   type              String
   provider          String
   providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
+  refresh_token     String?
+  access_token      String?
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String? @db.Text
+  id_token          String?
   session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
 }
@@ -40,21 +36,17 @@ model Session {
 
 model User {
   id            String    @id @default(cuid())
-  name          String?
   email         String    @unique
-  emailVerified DateTime?
-  image         String?
-  password      String?   // For credentials login
+  name          String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
-
-  // NextAuth relations
-  accounts Account[]
-  sessions Session[]
-  
-  // Your app-specific relations
-  videos Video[]
-  gifs   Gif[]
+  password      String?
+  emailVerified DateTime?
+  image         String?
+  accounts      Account[]
+  gifs          Gif[]
+  sessions      Session[]
+  videos        Video[]
 }
 
 model VerificationToken {
@@ -65,34 +57,46 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
-// Your app-specific models
 model Video {
-  id          String   @id @default(cuid())
-  title       String
-  url         String
-  description String?
-  thumbnail   String?
-  userId      String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  gifs Gif[]
+  id           String      @id @default(cuid())
+  title        String
+  description  String?
+  url          String
+  thumbnail    String?
+  userId       String
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  fileSize     Int
+  filename     String
+  mimeType     String
+  originalName String
+  status       String      @default("processing")
+  gifs         Gif[]
+  transcript   Transcript?
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Gif {
   id          String   @id @default(cuid())
-  title       String
-  description String?
-  caption     String?
-  prompt      String?
   startTime   Float
   endTime     Float
+  title       String
+  description String?
+  prompt      String?
+  caption     String?
   videoId     String
   userId      String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  video       Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+}
 
-  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
-  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+model Transcript {
+  id        String   @id @default(cuid())
+  videoId   String   @unique
+  words     Json
+  fullText  String
+  createdAt DateTime @default(now())
+  video     Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
 }

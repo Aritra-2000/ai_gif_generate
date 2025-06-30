@@ -2,6 +2,72 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
+### Environment Variables
+
+Create a `.env.local` file in the root directory with the following variables:
+
+```bash
+# AssemblyAI API Key for transcription
+ASSEMBLYAI_API_KEY=your_assemblyai_api_key
+
+# DeepSeek API Key for AI analysis
+DEEPSEEK_API_KEY=your_deepseek_api_key
+
+# Cloudinary configuration for file storage
+CLOUDINARY_CLOUD_NAME=your_cloudinary_cloud_name
+CLOUDINARY_API_KEY=your_cloudinary_api_key
+CLOUDINARY_API_SECRET=your_cloudinary_api_secret
+
+# Database URL (if using external database)
+DATABASE_URL="postgresql://username:password@localhost:5432/gif_generator"
+
+# NextAuth configuration
+NEXTAUTH_SECRET=your_nextauth_secret_here
+NEXTAUTH_URL=http://localhost:3000
+
+# Base URL for the application
+NEXT_PUBLIC_BASE_URL=http://localhost:3000
+```
+
+### API Keys Setup
+
+1. **AssemblyAI**: Get your API key from [AssemblyAI Console](https://www.assemblyai.com/app/account)
+2. **DeepSeek**: Get your API key from [DeepSeek Platform](https://platform.deepseek.com/)
+3. **Cloudinary**: Get your credentials from [Cloudinary Console](https://console.cloudinary.com/)
+
+### Database Setup
+
+1. Run Prisma migrations:
+```bash
+npx prisma migrate dev
+```
+
+2. Generate Prisma client:
+```bash
+npx prisma generate
+```
+
+### File Storage
+
+This application uses **Cloudinary** for video file storage instead of local storage. Videos are uploaded to Cloudinary and stored securely in the cloud. Temporary local files are created only for audio extraction and are automatically cleaned up after processing.
+
+**File Size Limits:**
+- **Maximum file size**: 100MB (due to Cloudinary free tier limits)
+- **Supported formats**: MP4, MOV, AVI, WebM
+- **Fallback storage**: If Cloudinary upload fails (e.g., file too large), videos are stored locally
+
+**Storage Strategy:**
+1. **Primary**: Cloudinary cloud storage (up to 100MB)
+2. **Fallback**: Local storage (for files > 100MB or Cloudinary failures)
+3. **Temporary**: Local files for audio extraction (auto-cleaned)
+
+### Cleanup
+
+To clean up old local upload files (if any):
+```bash
+npm run cleanup-uploads
+```
+
 First, run the development server:
 
 ```bash
