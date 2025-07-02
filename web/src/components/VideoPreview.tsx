@@ -43,7 +43,11 @@ export default function VideoPreview({ file, videoUrl }: VideoPreviewProps) {
         processedUrl = `${window.location.origin}${videoUrl}`
       }
       
-      // If it's a Cloudinary URL, it should already be absolute
+      // If it's a Cloudinary URL, use f_mp4 transformation for compatibility
+      if (videoUrl.includes('res.cloudinary.com') && videoUrl.includes('/upload/')) {
+        processedUrl = videoUrl.replace('/upload/', '/upload/f_mp4/')
+      }
+      
       // If it's a local file path, we need to convert it to a proper URL
       
       console.log('Original Video URL:', videoUrl)

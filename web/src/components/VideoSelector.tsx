@@ -92,38 +92,6 @@ export default function VideoSelector({ onVideoSelect, selectedVideoId }: VideoS
     }
   };
 
-  const handleCleanup = async () => {
-    if (!confirm('This will remove all videos that are no longer accessible in Cloudinary. Continue?')) {
-      return;
-    }
-
-    setIsCleaning(true);
-    setError(null);
-
-    try {
-      const response = await fetch('/api/video/cleanup', {
-        method: 'POST',
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to cleanup videos');
-      }
-
-      // Refresh the video list after cleanup
-      await fetchVideos();
-      
-      // Show success message
-      alert(`Cleanup completed! ${data.results.deleted} videos removed, ${data.results.accessible} remain accessible.`);
-      
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setIsCleaning(false);
-    }
-  };
-
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'completed':
@@ -206,13 +174,16 @@ export default function VideoSelector({ onVideoSelect, selectedVideoId }: VideoS
                   ? 'border-blue-500 bg-blue-50'
                   : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
               }`}
-              onClick={() => onVideoSelect(video)}
             >
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
                   <Play className="w-4 h-4 text-gray-600" />
                 </div>
-                <div className="flex-1 min-w-0">
+                <div
+                  className="flex-1 min-w-0"
+                  onClick={() => onVideoSelect(video)}
+                  style={{ cursor: 'pointer' }}
+                >
                   <h4 className="font-medium text-gray-900 truncate">
                     {video.title}
                   </h4>
@@ -232,43 +203,6 @@ export default function VideoSelector({ onVideoSelect, selectedVideoId }: VideoS
           ))
         )}
       </div>
-
-      {/* Refresh Button */}
-      {videos.length > 0 && (
-        <div className="text-center space-y-2">
-          <Button
-            onClick={fetchVideos}
-            variant="default"
-            size="sm"
-            className="text-gray-600 hover:text-gray-800"
-          >
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Refresh Videos
-          </Button>
-          
-          <div>
-            <Button
-              onClick={handleCleanup}
-              variant="default"
-              size="sm"
-              disabled={isCleaning}
-              className="text-orange-600 hover:text-orange-800"
-            >
-              {isCleaning ? (
-                <>
-                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                  Cleaning...
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  Cleanup Videos
-                </>
-              )}
-            </Button>
-          </div>
-        </div>
-      )}
     </div>
   );
 } 

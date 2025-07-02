@@ -6,6 +6,8 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import { AssemblyAI } from 'assemblyai';
 import cloudinary from '@/lib/cloudinary';
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/lib/auth.config";
 
 const execAsync = promisify(exec);
 
@@ -144,7 +146,9 @@ async function transcribeWithAssemblyAI(audioPath: string) {
       throw new Error('Failed to get upload URL from AssemblyAI');
     }
     
-    console.log('Using audio URL for transcription:', audioUrl);
+    console.log('Sending audio URL to AssemblyAI:', audioUrl);
+    
+    console.log('About to start transcript step. audioUrl:', audioUrl, 'ASSEMBLYAI_API_KEY:', !!ASSEMBLYAI_API_KEY);
     
     // Create a transcription request
     console.log('Starting AssemblyAI transcription...');
@@ -233,7 +237,24 @@ async function transcribeWithAssemblyAI(audioPath: string) {
 }
 
 export async function POST(req: NextRequest) {
+  console.log('--- New video upload request received ---');
   try {
+    // Get session and ensure authentication
+    const session = await getServerSession(authOptions);
+    if (!session || !session.user?.email) {
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+    }
+    const userEmail = session.user.email;
+    let user = await prisma.user.findUnique({ where: { email: userEmail } });
+    if (!user) {
+      user = await prisma.user.create({
+        data: {
+          email: userEmail,
+          name: session.user.name || "Google User",
+          url: session.user.image || "", // if your schema requires url
+        }
+      });
+    }
     // Parse form data
     const formData = await req.formData();
     const file = formData.get('video') as File;
@@ -247,136 +268,135 @@ export async function POST(req: NextRequest) {
     const buffer = Buffer.from(bytes);
     const fileName = `${Date.now()}-${file.name}`;
 
-    // Try to upload to Cloudinary first, fallback to local storage if it fails
+    // Only upload to Cloudinary
     let cloudinaryResult = null;
     let videoUrl = '';
     let thumbnailUrl = null;
-    
     try {
       cloudinaryResult = await uploadToCloudinary(buffer, fileName, 'video');
       videoUrl = cloudinaryResult.secure_url;
       thumbnailUrl = cloudinaryResult.thumbnail_url || null;
       console.log('Successfully uploaded to Cloudinary');
     } catch (cloudinaryError) {
-      console.warn('Cloudinary upload failed, falling back to local storage:', cloudinaryError);
-      
-      // Fallback to local storage
-      try {
-        await mkdir(UPLOAD_DIR, { recursive: true });
-        const localFilePath = path.join(UPLOAD_DIR, fileName);
-        await writeFile(localFilePath, buffer);
-        videoUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/uploads/${fileName}`;
-        console.log('Successfully saved to local storage');
-      } catch (localError) {
-        console.error('Local storage also failed:', localError);
-        throw new Error('Failed to upload video to both Cloudinary and local storage');
-      }
-    }
-    
-    // Create a temporary local file for audio extraction (we'll clean this up later)
-    const tempFilePath = path.join(UPLOAD_DIR, fileName);
-    try {
-      await mkdir(UPLOAD_DIR, { recursive: true });
-      await writeFile(tempFilePath, buffer);
-    } catch (error) {
-      console.warn('Failed to create temp file for audio extraction:', error);
+      console.error('Cloudinary upload failed:', cloudinaryError);
+      return NextResponse.json({ error: 'Failed to upload video to Cloudinary' }, { status: 500 });
     }
 
     // Create video record in database
-    // First, ensure we have an anonymous user
-    let anonymousUser = await prisma.user.findUnique({
-      where: { email: 'anonymous@example.com' }
-    });
-    
-    if (!anonymousUser) {
-      anonymousUser = await prisma.user.create({
-        data: {
-          email: 'anonymous@example.com',
-          name: 'Anonymous User',
-        }
-      });
-    }
-    
     const video = await prisma.video.create({
       data: {
-        userId: anonymousUser.id,
+        userId: user.id,
         title: file.name,
         filename: fileName,
         originalName: file.name,
         fileSize: file.size,
         mimeType: file.type,
         status: 'processing',
-        url: videoUrl,
+        url: videoUrl, // This is the Cloudinary URL
         description: null,
         thumbnail: thumbnailUrl,
       },
     });
 
-    // Generate transcript
+    // Create an audio-only version and save it in Cloudinary
+    const audioResult = await cloudinary.uploader.explicit(cloudinaryResult.public_id, {
+      resource_type: 'video',
+      type: 'upload',
+      eager: [
+        { format: 'mp3' }
+      ],
+      eager_async: false
+    });
+    console.log('Cloudinary audioResult:', audioResult);
+    if (!audioResult.eager || !audioResult.eager[0] || !audioResult.eager[0].secure_url) {
+      console.error('Cloudinary did not return an audio URL. audioResult:', audioResult);
+      return NextResponse.json({ error: 'Failed to extract audio from video for transcription.' }, { status: 500 });
+    }
+    const audioUrl = audioResult.eager[0].secure_url;
+    console.log('Audio URL for AssemblyAI:', audioUrl);
+
+    // Generate transcript using Cloudinary URL directly
     let transcriptData = null;
+    console.log('About to start transcript step. audioUrl:', audioUrl, 'ASSEMBLYAI_API_KEY:', !!ASSEMBLYAI_API_KEY);
     try {
-      // Extract audio from video file (using temp file)
-      const audioPath = await extractAudioFromVideo(tempFilePath);
-      
-      // Attempt transcription with AssemblyAI
-      transcriptData = await transcribeWithAssemblyAI(audioPath);
-      
-      // Save transcript to database
-      console.log('Saving transcript to database...');
-      const savedTranscript = await prisma.transcript.create({
+      if (!ASSEMBLYAI_API_KEY) {
+        console.error('AssemblyAI API key not configured');
+        throw new Error('AssemblyAI API key not configured');
+      }
+      // Log the audio URL being sent to AssemblyAI
+      console.log('Sending audio URL to AssemblyAI:', audioUrl);
+      // Send Cloudinary video URL directly to AssemblyAI
+      const transcript = await assemblyai.transcripts.create({
+        audio_url: audioUrl,
+        speaker_labels: true,
+        auto_highlights: true,
+        auto_chapters: true,
+      });
+      // Poll for completion
+      let completedTranscript = transcript;
+      let pollCount = 0;
+      const maxPolls = 60;
+      while (completedTranscript.status !== 'completed' && completedTranscript.status !== 'error' && pollCount < maxPolls) {
+        await new Promise(resolve => setTimeout(resolve, 5000));
+        pollCount++;
+        try {
+          completedTranscript = await assemblyai.transcripts.get(transcript.id);
+          console.log(`Poll ${pollCount}: Transcription status: ${completedTranscript.status}`);
+        } catch (pollError) {
+          console.error('Error polling AssemblyAI transcript:', pollError);
+          break;
+        }
+      }
+      if (completedTranscript.status === 'completed') {
+        transcriptData = {
+          words: completedTranscript.words || [],
+          fullText: completedTranscript.text || '',
+          confidence: completedTranscript.confidence,
+          audio_duration: completedTranscript.audio_duration,
+          chapters: completedTranscript.chapters,
+          highlights: completedTranscript.auto_highlights_result,
+        };
+        // Log before saving transcript
+        console.log('Saving transcript to DB for video:', video.id);
+        try {
+          await prisma.transcript.create({
         data: {
           videoId: video.id,
           words: transcriptData.words,
           fullText: transcriptData.fullText,
         },
       });
-      console.log('Transcript saved to database:', savedTranscript.id);
-
+          console.log('Transcript saved to DB for video:', video.id);
+        } catch (dbError) {
+          console.error('Failed to save transcript to DB:', dbError);
+        }
       // Update video status
-      console.log('Updating video status to completed...');
+        await prisma.video.update({
+          where: { id: video.id },
+          data: { status: 'completed' },
+        });
+      } else {
+        // If transcript fails or is not completed, still mark video as completed
+        console.warn('Transcript not completed for video:', video.id, 'Status:', completedTranscript.status);
+        await prisma.video.update({
+          where: { id: video.id },
+          data: { status: 'completed' },
+        });
+      }
+    } catch (transcriptError) {
+      // If transcript fails, still mark video as completed so it is usable
+      console.error('AssemblyAI transcript error:', transcriptError);
       await prisma.video.update({
         where: { id: video.id },
         data: { status: 'completed' },
       });
-      console.log('Video status updated to completed');
+    }
 
-      // Clean up temporary files
-      try {
-        const fs = require('fs');
-        if (fs.existsSync(tempFilePath)) {
-          fs.unlinkSync(tempFilePath);
-        }
-        if (fs.existsSync(audioPath)) {
-          fs.unlinkSync(audioPath);
-        }
-      } catch (cleanupError) {
-        console.warn('Failed to clean up temp files:', cleanupError);
-      }
-
-    } catch (transcriptError) {
-      console.error('Transcript generation failed:', transcriptError);
-      
-      // Update video status to indicate transcript failure
+    // Ensure status is completed if video is playable but still marked as processing
+    if (video.status === 'processing' && video.url && video.url.startsWith('https://res.cloudinary.com/')) {
       await prisma.video.update({
         where: { id: video.id },
-        data: { status: 'transcript_failed' },
-      });
-      
-      // Clean up temporary files even if transcription failed
-      try {
-        const fs = require('fs');
-        if (fs.existsSync(tempFilePath)) {
-          fs.unlinkSync(tempFilePath);
-        }
-      } catch (cleanupError) {
-        console.warn('Failed to clean up temp files:', cleanupError);
-      }
-      
-      // Return success for video upload but note transcript failure
-      return NextResponse.json({
-        video,
-        transcript: null,
-        transcriptError: transcriptError instanceof Error ? transcriptError.message : 'Failed to generate transcript, but video was uploaded successfully',
+        data: { status: 'completed' },
       });
     }
 
@@ -384,7 +404,6 @@ export async function POST(req: NextRequest) {
       video,
       transcript: transcriptData,
     });
-
   } catch (error: any) {
     console.error('Upload error:', error);
     return NextResponse.json({

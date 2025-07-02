@@ -36,6 +36,7 @@ model Session {
 
 model User {
   id            String    @id @default(cuid())
+  url           String?
   email         String    @unique
   name          String?
   createdAt     DateTime  @default(now())
@@ -61,8 +62,8 @@ model Video {
   id           String      @id @default(cuid())
   title        String
   description  String?
-  url          String
-  thumbnail    String?
+  url          String      // Store the Cloudinary URL here
+  thumbnail    String?     // You can also store a Cloudinary thumbnail URL here
   userId       String
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
