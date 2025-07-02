@@ -142,13 +142,12 @@ export async function GET(req: NextRequest) {
         gifs: true,
       },
     });
+    // Only keep videos with a Cloudinary URL
+    const cloudinaryVideos = videos.filter(v => v.url && v.url.startsWith('https://res.cloudinary.com/'));
     
-    // Filter out videos with inaccessible Cloudinary URLs
-    const accessibleVideos = await filterAccessibleVideos(videos);
+    console.log(`Found ${videos.length} total videos, ${cloudinaryVideos.length} accessible`);
     
-    console.log(`Found ${videos.length} total videos, ${accessibleVideos.length} accessible`);
-    
-    return NextResponse.json({ videos: accessibleVideos });
+    return NextResponse.json({ videos: cloudinaryVideos });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 400 });
   }

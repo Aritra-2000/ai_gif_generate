@@ -5,9 +5,25 @@ import GoogleProvider from "next-auth/providers/google";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import { prisma } from "@/lib/prisma";
 import { comparePassword } from "@/lib/auth";
+import { Adapter } from "next-auth/adapters";
+
+// Patch PrismaAdapter to always provide a value for 'url' when creating a user
+function PatchedPrismaAdapter(prisma: any): Adapter {
+  const adapter = PrismaAdapter(prisma);
+  return {
+    ...adapter,
+    async createUser(user: any) {
+      // Always provide a value for 'url'
+      if (!user.url) {
+        user.url = user.image || "";
+      }
+      return adapter.createUser(user);
+    },
+  };
+}
 
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma),
+  adapter: PatchedPrismaAdapter(prisma),
   providers: [
     CredentialsProvider({
       id: "credentials",
@@ -48,7 +64,7 @@ export const authOptions: NextAuthOptions = {
           return {
             ...userWithoutPassword,
             name: user.name || '',
-            image: user.image || '',
+            image: user?.image || '',
             emailVerified: user.emailVerified || null,
           };
         } catch (error) {

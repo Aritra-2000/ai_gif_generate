@@ -84,5 +84,26 @@ async function cleanupVideos() {
   }
 }
 
+// Add a function to update stuck videos
+async function fixStuckProcessingVideos() {
+  const updated = await prisma.video.updateMany({
+    where: {
+      status: 'processing',
+      url: {
+        startsWith: 'https://res.cloudinary.com/'
+      }
+    },
+    data: {
+      status: 'completed'
+    }
+  });
+  console.log(`✅ Updated ${updated.count} videos from 'processing' to 'completed'.`);
+}
+
 // Run the cleanup
-cleanupVideos(); 
+cleanupVideos();
+
+// Run the fix when this script is executed
+fixStuckProcessingVideos()
+  .catch(e => console.error(e))
+  .finally(() => prisma.$disconnect()); 
