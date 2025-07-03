@@ -50,16 +50,16 @@ export default function GifPreviewSelector({ gifs }: GifPreviewSelectorProps) {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gray-900">
+        <h3 className="text-base sm:text-lg font-semibold text-gray-900">
           Generated GIFs ({gifs.length})
         </h3>
       </div>
 
       {/* GIF Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 md:gap-4">
         {gifs.map((gif) => (
           <div
             key={gif.id}
@@ -94,21 +94,21 @@ export default function GifPreviewSelector({ gifs }: GifPreviewSelectorProps) {
               />
               
               {/* Duration Overlay */}
-              <div className="absolute bottom-2 left-2 bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
+              <div className="absolute bottom-2 left-2 bg-black bg-opacity-75 text-white text-xs md:text-sm px-2 py-1 rounded">
                 {formatDuration(gif.startTime, gif.endTime)}
               </div>
             </div>
 
             {/* Duration Info */}
-            <div className="p-3">
-              <p className="text-xs text-gray-500">
+            <div className="p-2 md:p-3">
+              <p className="text-xs md:text-sm text-gray-500">
                 <strong>Duration:</strong> {formatDuration(gif.startTime, gif.endTime)}
               </p>
             </div>
 
             <Button
               onClick={() => downloadGif(gif.url, gif.id)}
-              className="w-full mt-2"
+              className="w-full mt-2 text-xs md:text-sm"
             >
               Download
             </Button>

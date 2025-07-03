@@ -119,13 +119,13 @@ export default function VideoSelector({ onVideoSelect, selectedVideoId }: VideoS
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3 sm:space-y-4">
       {/* Header with Upload Button */}
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gray-900">Select Video</h3>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0">
+        <h3 className="text-base sm:text-lg font-semibold text-gray-900">Select Video</h3>
         <Button
           onClick={() => setShowUploadForm(!showUploadForm)}
-          className="flex items-center gap-2"
+          className="flex items-center gap-2 text-xs sm:text-base"
         >
           <Upload className="w-4 h-4" />
           {showUploadForm ? 'Cancel' : 'Upload New'}
@@ -134,10 +134,10 @@ export default function VideoSelector({ onVideoSelect, selectedVideoId }: VideoS
 
       {/* Upload Form */}
       {showUploadForm && (
-        <div className="bg-gray-50 rounded-lg p-4 border">
+        <div className="bg-gray-50 rounded-lg p-2 sm:p-4 border">
           <VideoUpload onUpload={handleVideoUpload} />
           {isUploading && (
-            <div className="mt-4 text-sm text-blue-600 flex items-center gap-2">
+            <div className="mt-2 sm:mt-4 text-xs sm:text-sm text-blue-600 flex items-center gap-2">
               <RefreshCw className="w-4 h-4 animate-spin" />
               Uploading and processing video...
             </div>
@@ -147,36 +147,36 @@ export default function VideoSelector({ onVideoSelect, selectedVideoId }: VideoS
 
       {/* Error Display */}
       {error && (
-        <div className="p-3 bg-red-50 border border-red-200 rounded-md">
-          <p className="text-red-600 text-sm">{error}</p>
+        <div className="p-2 sm:p-3 bg-red-50 border border-red-200 rounded-md">
+          <p className="text-red-600 text-xs sm:text-sm">{error}</p>
         </div>
       )}
 
       {/* Video List */}
       <div className="space-y-2">
         {isLoading ? (
-          <div className="text-center py-8 text-gray-500">
+          <div className="text-center py-6 sm:py-8 text-gray-500">
             <RefreshCw className="w-8 h-8 mx-auto mb-2 animate-spin" />
-            <p>Loading videos...</p>
+            <p className="text-xs sm:text-base">Loading videos...</p>
           </div>
         ) : videos.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
-            <Upload className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-            <p>No videos uploaded yet</p>
-            <p className="text-sm">Upload your first video to get started</p>
+          <div className="text-center py-6 sm:py-8 text-gray-500">
+            <Upload className="w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-4 text-gray-300" />
+            <p className="text-xs sm:text-base">No videos uploaded yet</p>
+            <p className="text-xs sm:text-sm">Upload your first video to get started</p>
           </div>
         ) : (
           videos.map((video) => (
             <div
               key={video.id}
-              className={`p-3 border rounded-lg cursor-pointer transition-all ${
+              className={`p-2 sm:p-3 border rounded-lg cursor-pointer transition-all ${
                 selectedVideoId === video.id
                   ? 'border-blue-500 bg-blue-50'
                   : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
               }`}
             >
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gray-100 rounded-lg flex items-center justify-center">
                   <Play className="w-4 h-4 text-gray-600" />
                 </div>
                 <div
@@ -184,10 +184,10 @@ export default function VideoSelector({ onVideoSelect, selectedVideoId }: VideoS
                   onClick={() => onVideoSelect(video)}
                   style={{ cursor: 'pointer' }}
                 >
-                  <h4 className="font-medium text-gray-900 truncate">
+                  <h4 className="font-medium text-gray-900 truncate text-xs sm:text-base">
                     {video.title}
                   </h4>
-                  <div className="flex items-center gap-2 text-sm text-gray-500">
+                  <div className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm text-gray-500">
                     {getStatusIcon(video.status)}
                     <span>{getStatusText(video.status)}</span>
                     {video.transcript && (

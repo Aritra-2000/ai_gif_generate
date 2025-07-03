@@ -3,11 +3,8 @@ import { prisma } from '@/lib/prisma';
 
 export async function GET(req: NextRequest) {
   try {
-    console.log('Testing Prisma connection...');
-    
     // Test basic Prisma connection
     const videoCount = await prisma.video.count();
-    console.log('Video count:', videoCount);
     
     // Test creating a simple video record
     const testVideo = await prisma.video.create({
@@ -25,8 +22,6 @@ export async function GET(req: NextRequest) {
       },
     });
     
-    console.log('Test video created:', testVideo.id);
-    
     // Clean up test record
     await prisma.video.delete({
       where: { id: testVideo.id }
@@ -39,12 +34,6 @@ export async function GET(req: NextRequest) {
     });
     
   } catch (error: any) {
-    console.error('Test error:', {
-      message: error.message,
-      stack: error.stack,
-      name: error.name,
-    });
-    
     return NextResponse.json({
       success: false,
       error: error.message,

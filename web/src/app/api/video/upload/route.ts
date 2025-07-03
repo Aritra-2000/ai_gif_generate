@@ -24,9 +24,6 @@ const assemblyai = new AssemblyAI({
 
 async function uploadToCloudinary(file: Buffer, fileName: string, resourceType: 'video' | 'raw' = 'video') {
   try {
-    console.log('Uploading to Cloudinary:', fileName);
-    console.log('File size:', file.length, 'bytes');
-    
     // Check file size (Cloudinary has a 100MB limit for free accounts)
     const maxSize = 100 * 1024 * 1024; // 100MB
     if (file.length > maxSize) {
@@ -45,10 +42,8 @@ async function uploadToCloudinary(file: Buffer, fileName: string, resourceType: 
       overwrite: true,
     });
     
-    console.log('Cloudinary upload successful:', result.secure_url);
     return result;
   } catch (error) {
-    console.error('Cloudinary upload error:', error);
     throw error;
   }
 }
@@ -62,12 +57,10 @@ async function extractAudioFromVideo(videoPath: string): Promise<string> {
     
     try {
       const { stdout, stderr } = await execAsync(`"${ffmpegPath}" -version`);
-      console.log('FFmpeg is available at:', ffmpegPath);
     } catch (error) {
       console.warn('FFmpeg not found, trying system PATH');
       try {
         const { stdout, stderr } = await execAsync('ffmpeg -version');
-        console.log('FFmpeg is available in system PATH');
       } catch (pathError) {
         console.warn('FFmpeg not found in system PATH either');
         throw new Error('FFmpeg is not installed. Please install FFmpeg to enable audio transcription.');
@@ -76,8 +69,6 @@ async function extractAudioFromVideo(videoPath: string): Promise<string> {
     
     // Use FFmpeg to extract audio from video
     const ffmpegCommand = `"${ffmpegPath}" -i "${videoPath}" -vn -acodec pcm_s16le -ar 16000 -ac 1 "${audioPath}" -y`;
-    
-    console.log('Extracting audio with FFmpeg:', ffmpegCommand);
     
     const { stdout, stderr } = await execAsync(ffmpegCommand);
     
@@ -90,22 +81,17 @@ async function extractAudioFromVideo(videoPath: string): Promise<string> {
       stderr.includes('No such file') ||
       stderr.includes('Permission denied')
     )) {
-      console.error('FFmpeg audio extraction error:', stderr);
       throw new Error('Failed to extract audio from video');
     }
     
-    console.log('Audio extraction completed:', audioPath);
     return audioPath;
   } catch (error) {
-    console.error('Audio extraction error:', error);
     throw error;
   }
 }
 
 async function transcribeWithAssemblyAI(audioPath: string) {
   try {
-    console.log('Starting AssemblyAI transcription for:', audioPath);
-    
     // Check if audio file exists
     const fs = require('fs');
     if (!fs.existsSync(audioPath)) {
@@ -114,7 +100,6 @@ async function transcribeWithAssemblyAI(audioPath: string) {
     
     // Get file size to confirm extraction worked
     const stats = fs.statSync(audioPath);
-    console.log('Audio file size:', stats.size, 'bytes');
     
     if (!ASSEMBLYAI_API_KEY) {
       throw new Error('AssemblyAI API key not configured');
@@ -122,13 +107,9 @@ async function transcribeWithAssemblyAI(audioPath: string) {
     
     // Read the audio file
     const audioFile = fs.readFileSync(audioPath);
-    console.log('Audio file read, size:', audioFile.length, 'bytes');
     
     // Upload the audio file to AssemblyAI
-    console.log('Starting AssemblyAI file upload...');
     const uploadResponse = await assemblyai.files.upload(audioFile) as any;
-    console.log('Audio file uploaded to AssemblyAI:', uploadResponse.id);
-    console.log('Upload response:', JSON.stringify(uploadResponse, null, 2));
     
     // Handle different response formats from AssemblyAI
     let audioUrl = '';
@@ -142,25 +123,16 @@ async function transcribeWithAssemblyAI(audioPath: string) {
       // Object with url property
       audioUrl = uploadResponse.url;
     } else {
-      console.error('Unexpected upload response format:', uploadResponse);
       throw new Error('Failed to get upload URL from AssemblyAI');
     }
     
-    console.log('Sending audio URL to AssemblyAI:', audioUrl);
-    
-    console.log('About to start transcript step. audioUrl:', audioUrl, 'ASSEMBLYAI_API_KEY:', !!ASSEMBLYAI_API_KEY);
-    
     // Create a transcription request
-    console.log('Starting AssemblyAI transcription...');
     const transcript = await assemblyai.transcripts.create({
       audio_url: audioUrl,
       speaker_labels: true,
       auto_highlights: true,
       auto_chapters: true,
     }) as any;
-    
-    console.log('Transcription started:', transcript.id);
-    console.log('Initial transcript response:', JSON.stringify(transcript, null, 2));
     
     // Poll for completion
     let completedTranscript = transcript;
@@ -173,13 +145,7 @@ async function transcribeWithAssemblyAI(audioPath: string) {
       
       try {
         completedTranscript = await assemblyai.transcripts.get(transcript.id) as any;
-        console.log(`Poll ${pollCount}: Transcription status: ${completedTranscript.status}`);
-        
-        if (completedTranscript.status === 'processing') {
-          console.log('Still processing...');
-        }
       } catch (pollError) {
-        console.error(`Error polling transcript ${transcript.id}:`, pollError);
         break;
       }
     }
@@ -189,12 +155,8 @@ async function transcribeWithAssemblyAI(audioPath: string) {
     }
     
     if (completedTranscript.status === 'error') {
-      console.error('Transcription failed with error:', completedTranscript.error);
       throw new Error(`Transcription failed: ${completedTranscript.error}`);
     }
-    
-    console.log('Transcription completed successfully');
-    console.log('Final transcript response:', JSON.stringify(completedTranscript, null, 2));
     
     // Extract words with timestamps
     let words = [];
@@ -206,9 +168,7 @@ async function transcribeWithAssemblyAI(audioPath: string) {
         confidence: word.confidence,
         speaker: word.speaker,
       })) || [];
-      console.log(`Extracted ${words.length} words from transcript`);
     } catch (wordError) {
-      console.error('Error extracting words:', wordError);
       words = [];
     }
     
@@ -221,23 +181,14 @@ async function transcribeWithAssemblyAI(audioPath: string) {
       highlights: completedTranscript.auto_highlights_result,
     };
     
-    console.log('Final transcript data:', {
-      wordCount: words.length,
-      textLength: result.fullText.length,
-      confidence: result.confidence,
-      duration: result.audio_duration
-    });
-    
     return result;
     
   } catch (error) {
-    console.error('AssemblyAI transcription error:', error);
     throw error;
   }
 }
 
 export async function POST(req: NextRequest) {
-  console.log('--- New video upload request received ---');
   try {
     // Get session and ensure authentication
     const session = await getServerSession(authOptions);
@@ -276,9 +227,7 @@ export async function POST(req: NextRequest) {
       cloudinaryResult = await uploadToCloudinary(buffer, fileName, 'video');
       videoUrl = cloudinaryResult.secure_url;
       thumbnailUrl = cloudinaryResult.thumbnail_url || null;
-      console.log('Successfully uploaded to Cloudinary');
     } catch (cloudinaryError) {
-      console.error('Cloudinary upload failed:', cloudinaryError);
       return NextResponse.json({ error: 'Failed to upload video to Cloudinary' }, { status: 500 });
     }
 
@@ -307,24 +256,17 @@ export async function POST(req: NextRequest) {
       ],
       eager_async: false
     });
-    console.log('Cloudinary audioResult:', audioResult);
     if (!audioResult.eager || !audioResult.eager[0] || !audioResult.eager[0].secure_url) {
-      console.error('Cloudinary did not return an audio URL. audioResult:', audioResult);
       return NextResponse.json({ error: 'Failed to extract audio from video for transcription.' }, { status: 500 });
     }
     const audioUrl = audioResult.eager[0].secure_url;
-    console.log('Audio URL for AssemblyAI:', audioUrl);
 
     // Generate transcript using Cloudinary URL directly
     let transcriptData = null;
-    console.log('About to start transcript step. audioUrl:', audioUrl, 'ASSEMBLYAI_API_KEY:', !!ASSEMBLYAI_API_KEY);
     try {
       if (!ASSEMBLYAI_API_KEY) {
-        console.error('AssemblyAI API key not configured');
         throw new Error('AssemblyAI API key not configured');
       }
-      // Log the audio URL being sent to AssemblyAI
-      console.log('Sending audio URL to AssemblyAI:', audioUrl);
       // Send Cloudinary video URL directly to AssemblyAI
       const transcript = await assemblyai.transcripts.create({
         audio_url: audioUrl,
@@ -341,9 +283,7 @@ export async function POST(req: NextRequest) {
         pollCount++;
         try {
           completedTranscript = await assemblyai.transcripts.get(transcript.id);
-          console.log(`Poll ${pollCount}: Transcription status: ${completedTranscript.status}`);
         } catch (pollError) {
-          console.error('Error polling AssemblyAI transcript:', pollError);
           break;
         }
       }
@@ -356,28 +296,21 @@ export async function POST(req: NextRequest) {
           chapters: completedTranscript.chapters,
           highlights: completedTranscript.auto_highlights_result,
         };
-        // Log before saving transcript
-        console.log('Saving transcript to DB for video:', video.id);
-        try {
-          await prisma.transcript.create({
-        data: {
-          videoId: video.id,
-          words: transcriptData.words,
-          fullText: transcriptData.fullText,
-        },
-      });
-          console.log('Transcript saved to DB for video:', video.id);
-        } catch (dbError) {
-          console.error('Failed to save transcript to DB:', dbError);
-        }
-      // Update video status
+        // Save transcript to DB for video
+        await prisma.transcript.create({
+          data: {
+            videoId: video.id,
+            words: transcriptData.words,
+            fullText: transcriptData.fullText,
+          },
+        });
+        // Update video status
         await prisma.video.update({
           where: { id: video.id },
           data: { status: 'completed' },
         });
       } else {
         // If transcript fails or is not completed, still mark video as completed
-        console.warn('Transcript not completed for video:', video.id, 'Status:', completedTranscript.status);
         await prisma.video.update({
           where: { id: video.id },
           data: { status: 'completed' },
@@ -385,7 +318,6 @@ export async function POST(req: NextRequest) {
       }
     } catch (transcriptError) {
       // If transcript fails, still mark video as completed so it is usable
-      console.error('AssemblyAI transcript error:', transcriptError);
       await prisma.video.update({
         where: { id: video.id },
         data: { status: 'completed' },
@@ -405,7 +337,6 @@ export async function POST(req: NextRequest) {
       transcript: transcriptData,
     });
   } catch (error: any) {
-    console.error('Upload error:', error);
     return NextResponse.json({
       error: 'Failed to upload video',
       details: error.message,

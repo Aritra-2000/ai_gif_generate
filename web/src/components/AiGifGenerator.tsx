@@ -158,17 +158,17 @@ export function AiGifGenerator({ videoId, onGifsGenerated }: AiGifGeneratorProps
   };
 
   return (
-    <div className="space-y-6 p-6 bg-white rounded-lg shadow-md">
+    <div className="space-y-4 sm:space-y-6 p-3 sm:p-6 bg-white rounded-lg shadow-md">
       <div>
-        <h3 className="text-lg font-semibold mb-2">AI-Powered GIF Generator</h3>
-        <p className="text-gray-600 text-sm mb-4">
+        <h3 className="text-base sm:text-lg font-semibold mb-2">AI-Powered GIF Generator</h3>
+        <p className="text-gray-600 text-xs sm:text-sm mb-4">
           Enter a theme or prompt to generate captioned GIFs from your video
         </p>
       </div>
 
       {/* Prompt Input */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
           Theme/Prompt
         </label>
         <input
@@ -176,17 +176,17 @@ export function AiGifGenerator({ videoId, onGifsGenerated }: AiGifGeneratorProps
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           placeholder="e.g., Stay motivated, Crush your goals, Never give up"
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-base"
           disabled={isAnalyzing || isGenerating}
         />
       </div>
 
       {/* Action Buttons */}
-      <div className="flex gap-3">
+      <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
         <Button
           onClick={analyzeTranscript}
           disabled={isAnalyzing || isGenerating || !prompt.trim()}
-          className="flex-1"
+          className="flex-1 text-xs sm:text-base"
         >
           {isAnalyzing ? 'Analyzing...' : 'Analyze Transcript'}
         </Button>
@@ -194,12 +194,11 @@ export function AiGifGenerator({ videoId, onGifsGenerated }: AiGifGeneratorProps
         <Button
           onClick={generateGifs}
           disabled={isGenerating || selectedCaptions.size === 0}
-          className="flex-1"
+          className="flex-1 text-xs sm:text-base"
         >
           {isGenerating 
             ? 'Generating GIFs...' 
-            : `Generate GIFs (${selectedCaptions.size} selected)`
-          }
+            : 'Generate GIFs'}
         </Button>
       </div>
 

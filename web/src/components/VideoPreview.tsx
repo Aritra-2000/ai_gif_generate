@@ -11,7 +11,6 @@ export default function VideoPreview({ file, videoUrl }: VideoPreviewProps) {
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [loadTimeout, setLoadTimeout] = useState<NodeJS.Timeout | null>(null)
-  const [debugInfo, setDebugInfo] = useState<string>('')
   const [isPlaying, setIsPlaying] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
@@ -28,7 +27,6 @@ export default function VideoPreview({ file, videoUrl }: VideoPreviewProps) {
       setUrl(objectUrl)
       setError(null)
       setIsLoading(true)
-      setDebugInfo(`Using file object URL: ${objectUrl}`)
       console.log('Using file object URL:', objectUrl)
 
       return () => {
@@ -57,13 +55,11 @@ export default function VideoPreview({ file, videoUrl }: VideoPreviewProps) {
       setUrl(processedUrl)
       setError(null)
       setIsLoading(true)
-      setDebugInfo(`Original: ${videoUrl}\nProcessed: ${processedUrl}`)
       
       // Set a timeout to detect if video fails to load
       const timeout = setTimeout(() => {
         console.log('Video load timeout - checking if video loaded')
         setIsLoading(false)
-        setDebugInfo(prev => prev + '\n[Timeout reached - video may not be loading]')
       }, 10000); // 10 second timeout
       
       setLoadTimeout(timeout)
@@ -71,7 +67,6 @@ export default function VideoPreview({ file, videoUrl }: VideoPreviewProps) {
       setUrl('')
       setError(null)
       setIsLoading(false)
-      setDebugInfo('No file or videoUrl provided')
     }
   }, [file, videoUrl])
 
@@ -107,7 +102,6 @@ export default function VideoPreview({ file, videoUrl }: VideoPreviewProps) {
     
     setError(errorMessage)
     setIsLoading(false)
-    setDebugInfo(prev => prev + `\n[Error: ${errorMessage}]`)
     
     // Clear timeout
     if (loadTimeout) {
@@ -120,7 +114,6 @@ export default function VideoPreview({ file, videoUrl }: VideoPreviewProps) {
     console.log('Video loaded successfully:', url)
     setError(null)
     setIsLoading(false)
-    setDebugInfo(prev => prev + '\n[Video loaded successfully]')
     
     // Clear timeout
     if (loadTimeout) {
@@ -132,7 +125,6 @@ export default function VideoPreview({ file, videoUrl }: VideoPreviewProps) {
   const handleVideoCanPlay = () => {
     console.log('Video can start playing:', url)
     setIsLoading(false)
-    setDebugInfo(prev => prev + '\n[Video can play]')
     
     // Clear timeout
     if (loadTimeout) {
@@ -146,7 +138,6 @@ export default function VideoPreview({ file, videoUrl }: VideoPreviewProps) {
       const video = videoRef.current
       setDuration(video.duration)
       setTrimEnd(video.duration)
-      setDebugInfo(prev => prev + `\n[Duration: ${video.duration}s]`)
     }
   }
 
@@ -225,10 +216,6 @@ export default function VideoPreview({ file, videoUrl }: VideoPreviewProps) {
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
           <p className="text-gray-500">Loading video...</p>
           <p className="text-xs text-gray-400 mt-1">URL: {url.substring(0, 50)}...</p>
-          <details className="mt-2 text-left">
-            <summary className="text-xs text-gray-500 cursor-pointer">Debug Info</summary>
-            <pre className="text-xs text-gray-600 mt-1 whitespace-pre-wrap">{debugInfo}</pre>
-          </details>
         </div>
       </div>
     )
@@ -241,15 +228,10 @@ export default function VideoPreview({ file, videoUrl }: VideoPreviewProps) {
           <p className="text-red-600 font-medium">Video Error</p>
           <p className="text-red-500 text-sm">{error}</p>
           <p className="text-gray-500 text-xs mt-2">URL: {url.substring(0, 50)}...</p>
-          <details className="mt-2 text-left">
-            <summary className="text-xs text-gray-500 cursor-pointer">Debug Info</summary>
-            <pre className="text-xs text-gray-600 mt-1 whitespace-pre-wrap">{debugInfo}</pre>
-          </details>
           <button 
             onClick={() => {
               setError(null)
               setIsLoading(true)
-              setDebugInfo(prev => prev + '\n[Retrying...]')
               // Retry loading
               const videoElement = document.querySelector('video') as HTMLVideoElement
               if (videoElement) {
@@ -266,28 +248,19 @@ export default function VideoPreview({ file, videoUrl }: VideoPreviewProps) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="w-full">
       <div className="relative aspect-video bg-black rounded-lg overflow-hidden">
         <video
           ref={videoRef}
           src={url}
           controls
-          className="w-full h-full"
+          className="w-full h-full object-contain"
           onError={handleVideoError}
-          onLoad={handleVideoLoad}
+          onLoadedData={handleVideoLoad}
           onCanPlay={handleVideoCanPlay}
           onLoadedMetadata={handleLoadedMetadata}
           onTimeUpdate={handleTimeUpdate}
-          onPlay={() => setIsPlaying(true)}
-          onPause={() => setIsPlaying(false)}
-          preload="metadata"
-          crossOrigin="anonymous"
-        >
-          <source src={url} type="video/mp4" />
-          <source src={url} type="video/webm" />
-          <source src={url} type="video/ogg" />
-          Your browser does not support the video tag.
-        </video>
+        />
         
         {/* Video Controls Overlay */}
         <div className="absolute bottom-4 left-4 right-4 flex items-center justify-center space-x-2">
@@ -312,11 +285,6 @@ export default function VideoPreview({ file, videoUrl }: VideoPreviewProps) {
             <Scissors size={16} />
           </button>
         </div>
-
-        <details className="absolute top-2 right-2 bg-black bg-opacity-50 text-white p-2 rounded text-xs">
-          <summary className="cursor-pointer">Debug</summary>
-          <pre className="whitespace-pre-wrap mt-1">{debugInfo}</pre>
-        </details>
       </div>
 
       {/* Trim Controls */}

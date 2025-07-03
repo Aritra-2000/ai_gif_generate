@@ -12,7 +12,6 @@ async function isCloudinaryUrlAccessible(url: string): Promise<boolean> {
     const response = await fetch(url, { method: 'HEAD' });
     return response.ok;
   } catch (error) {
-    console.log('Cloudinary URL not accessible:', url);
     return false;
   }
 }
@@ -74,7 +73,6 @@ export async function POST(req: NextRequest) {
             status: 'deleted'
           });
           
-          console.log(`Deleted video: ${video.title} (${video.id})`);
         } catch (deleteError) {
           results.errors++;
           results.details.push({
@@ -84,7 +82,6 @@ export async function POST(req: NextRequest) {
             status: 'error',
             error: deleteError instanceof Error ? deleteError.message : 'Unknown error'
           });
-          console.error(`Failed to delete video ${video.id}:`, deleteError);
         }
       }
     }
@@ -96,7 +93,6 @@ export async function POST(req: NextRequest) {
     });
     
   } catch (error: any) {
-    console.error('Cleanup error:', error);
     return NextResponse.json({
       error: 'Failed to cleanup videos',
       details: error.message
