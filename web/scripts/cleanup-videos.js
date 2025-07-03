@@ -101,7 +101,7 @@ async function fixStuckProcessingVideos() {
 }
 
 // Run the cleanup
-cleanupVideos();
+cleanupVideos(); 
 
 // Run the fix when this script is executed
 fixStuckProcessingVideos()
