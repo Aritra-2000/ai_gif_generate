@@ -3,8 +3,6 @@ import { prisma } from '@/lib/prisma';
 
 export async function GET(req: NextRequest) {
   try {
-    console.log('Testing video upload functionality...');
-    
     // Test creating a video record with all required fields
     const testVideo = await prisma.video.create({
       data: {
@@ -21,8 +19,6 @@ export async function GET(req: NextRequest) {
       },
     });
     
-    console.log('Test video created successfully:', testVideo.id);
-    
     // Test creating a transcript
     const testTranscript = await prisma.transcript.create({
       data: {
@@ -31,8 +27,6 @@ export async function GET(req: NextRequest) {
         fullText: "This is a test transcript for the video upload functionality.",
       },
     });
-    
-    console.log('Test transcript created successfully:', testTranscript.id);
     
     // Clean up test records
     await prisma.transcript.delete({
@@ -59,12 +53,6 @@ export async function GET(req: NextRequest) {
     });
     
   } catch (error: any) {
-    console.error('Test upload error:', {
-      message: error.message,
-      stack: error.stack,
-      name: error.name,
-    });
-    
     return NextResponse.json({
       success: false,
       error: error.message,

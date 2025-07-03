@@ -6,6 +6,7 @@ import path from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs';
+import { v2 as cloudinary } from 'cloudinary';
 
 const execAsync = promisify(exec);
 
@@ -13,6 +14,12 @@ const execAsync = promisify(exec);
 const UPLOAD_DIR = path.join(process.cwd(), 'uploads');
 const OUTPUT_DIR = path.join(process.cwd(), 'public', 'gifs');
 const TEMP_DIR = path.join(process.cwd(), 'temp');
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 interface CaptionData {
   text: string;
@@ -23,8 +30,6 @@ interface CaptionData {
 
 async function downloadVideoFromCloudinary(videoUrl: string, filename: string): Promise<string> {
   try {
-    console.log('Downloading video from Cloudinary:', videoUrl);
-    
     // Ensure temp directory exists
     await mkdir(TEMP_DIR, { recursive: true });
     
@@ -37,11 +42,9 @@ async function downloadVideoFromCloudinary(videoUrl: string, filename: string): 
     const videoPath = path.join(TEMP_DIR, filename);
     
     await writeFile(videoPath, Buffer.from(buffer));
-    console.log('Video downloaded successfully:', videoPath);
     
     return videoPath;
   } catch (error) {
-    console.error('Error downloading video:', error);
     throw error;
   }
 }
@@ -57,12 +60,6 @@ async function createGif(
       throw new Error(`Video file not found: ${videoPath}`);
     }
     
-    console.log('Creating GIF from video:', videoPath);
-    console.log('Time range:', `${caption.startTime}s - ${caption.endTime}s`);
-    
-    // Ensure output directory exists
-    await mkdir(path.dirname(outputPath), { recursive: true });
-
     // Calculate duration
     const duration = caption.endTime - caption.startTime;
     const maxDuration = Math.min(Math.max(duration, 1.0), 8.0);
@@ -79,10 +76,8 @@ async function createGif(
       try {
         await execAsync(`"${path}" -version`);
         ffmpegPath = path;
-        console.log('FFmpeg found at:', path);
         break;
       } catch (error) {
-        console.log('FFmpeg not found at:', path);
       }
     }
     
@@ -93,20 +88,24 @@ async function createGif(
     // Create a simple GIF without text overlay
     const ffmpegCommand = `"${ffmpegPath}" -i "${videoPath}" -ss ${caption.startTime} -t ${maxDuration} -vf "fps=10,scale=480:-1" -y "${outputPath}"`;
 
-    console.log('Executing FFmpeg command:', ffmpegCommand);
-    
     const { stdout, stderr } = await execAsync(ffmpegCommand);
     
     // Check if output file was created
     if (!fs.existsSync(outputPath)) {
-      console.error('FFmpeg stderr:', stderr);
       throw new Error('FFmpeg did not create output file');
     }
     
-    console.log('GIF created successfully:', outputPath);
-    return outputPath;
+    const uploadResult = await cloudinary.uploader.upload(outputPath, {
+      resource_type: 'image',
+      folder: 'gifs', // optional: organize in a folder
+      use_filename: true,
+      unique_filename: false,
+      overwrite: true,
+    });
+    const gifUrl = uploadResult.secure_url;
+
+    return gifUrl;
   } catch (error) {
-    console.error('GIF creation error:', error);
     throw error;
   }
 }
@@ -121,8 +120,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Video ID and captions array are required' }, { status: 400 });
     }
 
-    console.log('GIF generation request:', { videoId, captionsCount: captions.length, prompt });
-
     // Verify video exists
     const video = await prisma.video.findUnique({
       where: { id: videoId },
@@ -131,8 +128,6 @@ export async function POST(req: NextRequest) {
     if (!video) {
       return NextResponse.json({ error: 'Video not found' }, { status: 404 });
     }
-
-    console.log('Video found:', { title: video.title, url: video.url });
 
     // Handle video source (Cloudinary vs local)
     let videoPath;
@@ -166,10 +161,8 @@ export async function POST(req: NextRequest) {
       const outputPath = path.join(OUTPUT_DIR, gifFilename);
       
       try {
-        console.log(`Generating GIF ${i + 1}/${captions.length}:`, caption);
-        
         // Create GIF
-        await createGif(videoPath, caption, outputPath);
+        const gifUrl = await createGif(videoPath, caption, outputPath);
         
         // Save GIF record to database
         const gif = await prisma.gif.create({
@@ -181,21 +174,19 @@ export async function POST(req: NextRequest) {
             endTime: caption.endTime,
             videoId: videoId,
             userId: video.userId,
+            url: gifUrl,
           },
         });
 
         generatedGifs.push({
           id: gif.id,
-          url: `/gifs/${gifFilename}`,
+          url: gifUrl,
           startTime: caption.startTime,
           endTime: caption.endTime,
         });
 
-        console.log(`GIF ${i + 1} generated successfully`);
-
       } catch (error: any) {
         const errorMsg = `Failed to generate GIF ${i + 1}: ${error.message}`;
-        console.error(errorMsg);
         errors.push(errorMsg);
         // Continue with other GIFs even if one fails
       }
@@ -205,9 +196,7 @@ export async function POST(req: NextRequest) {
     if (tempVideoPath && fs.existsSync(tempVideoPath)) {
       try {
         await unlink(tempVideoPath);
-        console.log('Temporary video file cleaned up');
       } catch (cleanupError) {
-        console.warn('Failed to clean up temporary video file:', cleanupError);
       }
     }
 
@@ -223,8 +212,6 @@ export async function POST(req: NextRequest) {
       }, { status: 500 });
     }
 
-    console.log(`Successfully generated ${generatedGifs.length} GIFs`);
-
     return NextResponse.json({ 
       success: true,
       gifs: generatedGifs,
@@ -234,15 +221,11 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (err: any) {
-    console.error('GIF Generation Error:', err);
-    
     // Clean up temporary video file on error
     if (tempVideoPath && fs.existsSync(tempVideoPath)) {
       try {
         await unlink(tempVideoPath);
-        console.log('Temporary video file cleaned up after error');
       } catch (cleanupError) {
-        console.warn('Failed to clean up temporary video file:', cleanupError);
       }
     }
     
