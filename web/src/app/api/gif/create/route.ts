@@ -161,9 +161,26 @@ export async function POST(req: NextRequest) {
       const outputPath = path.join(OUTPUT_DIR, gifFilename);
       
       try {
-        // Create GIF
-        const gifUrl = await createGif(videoPath, caption, outputPath);
-        
+        // Parse Cloudinary public_id from video.url
+        const urlPattern = /\/upload\/(?:v\d+\/)?(.+)\.([^.]+)$/;
+        const match = video.url.match(urlPattern);
+        if (!match) {
+          return NextResponse.json({ error: 'Invalid Cloudinary video URL format' }, { status: 400 });
+        }
+        const publicId = match[1];
+        const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+
+        const transformations = [
+          `so_${caption.startTime}`,
+          `eo_${caption.endTime}`,
+          'f_gif',
+          'q_auto',
+          'w_500',
+          'h_400',
+          'c_limit'
+        ];
+        const gifUrl = `https://res.cloudinary.com/${cloudName}/video/upload/${transformations.join(',')}/${publicId}.gif`;
+
         // Save GIF record to database
         const gif = await prisma.gif.create({
           data: {
