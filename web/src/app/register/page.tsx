@@ -98,23 +98,23 @@ export default function RegisterPage() {
   return (
     <>
       <Header />
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center px-4">
-        <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-2xl shadow-xl">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center px-2 sm:px-4">
+        <div className="max-w-md w-full space-y-6 sm:space-y-8 bg-white p-4 sm:p-8 rounded-2xl shadow-xl">
           <div className="text-center">
-            <h2 className="text-3xl font-bold text-gray-900">
+            <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">
               Create your account
             </h2>
-            <p className="mt-2 text-gray-600">Join FocusFlow today</p>
+            <p className="mt-2 text-xs sm:text-sm text-gray-600">Join FocusFlow today</p>
           </div>
           
-          <form className="space-y-6" onSubmit={handleSubmit}>
+          <form className="space-y-4 sm:space-y-6" onSubmit={handleSubmit}>
             <div>
               <input
                 type="text"
                 placeholder="Full Name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-50"
+                className="w-full px-3 sm:px-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-50 text-sm sm:text-base"
                 required
                 disabled={isLoading}
                 minLength={2}
@@ -127,7 +127,7 @@ export default function RegisterPage() {
                 placeholder="Email Address"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-50"
+                className="w-full px-3 sm:px-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-50 text-sm sm:text-base"
                 required
                 disabled={isLoading}
               />
@@ -139,7 +139,7 @@ export default function RegisterPage() {
                 placeholder="Password (min. 6 characters)"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-50"
+                className="w-full px-3 sm:px-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-50 text-sm sm:text-base"
                 required
                 disabled={isLoading}
                 minLength={6}
@@ -147,14 +147,14 @@ export default function RegisterPage() {
             </div>
             
             {error && (
-              <div className="text-red-500 text-sm bg-red-50 p-3 rounded-lg">
+              <div className="text-red-500 text-xs sm:text-sm bg-red-50 p-2 sm:p-3 rounded-lg">
                 {error}
               </div>
             )}
             
             <Button
               type="submit"
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
               disabled={isLoading}
             >
               {isLoading ? (
@@ -175,14 +175,14 @@ export default function RegisterPage() {
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-gray-300" />
             </div>
-            <div className="relative flex justify-center text-sm">
+            <div className="relative flex justify-center text-xs sm:text-sm">
               <span className="px-2 bg-white text-gray-500">or</span>
             </div>
           </div>
           
           <Button
             onClick={handleGoogleSignUp}
-            className="w-full bg-white hover:bg-gray-50 text-gray-900 py-2 rounded-lg border border-gray-300 transition-colors flex items-center justify-center gap-2"
+            className="w-full bg-white hover:bg-gray-50 text-gray-900 py-2 rounded-lg border border-gray-300 transition-colors flex items-center justify-center gap-2 text-sm sm:text-base"
             disabled={isLoading}
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -206,10 +206,10 @@ export default function RegisterPage() {
             Sign up with Google
           </Button>
           
-          <div className="text-center text-sm text-gray-600">
+          <div className="text-center text-xs sm:text-sm text-gray-600">
             Already have an account?{" "}
             <a href="/login" className="text-blue-600 hover:underline">
-              Sign in
+              Login
             </a>
           </div>
         </div>
