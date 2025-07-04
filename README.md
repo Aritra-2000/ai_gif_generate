@@ -41,6 +41,6 @@ This tool analyzes video transcripts, extracts key moments based on your theme (
 ### Steps
 ```bash
 git clone https://github.com/yourusername/ai-gif-generator.git
-cd ai-gif-generator
+cd ai-gif-generator/web
 npm install
 npx prisma generate
