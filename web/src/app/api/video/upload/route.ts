@@ -1,21 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { writeFile, mkdir } from 'fs/promises';
-import path from 'path';
-import { exec } from 'child_process';
-import { promisify } from 'util';
+
 import { AssemblyAI } from 'assemblyai';
 import cloudinary from '@/lib/cloudinary';
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth.config";
 
-const execAsync = promisify(exec);
-
-// DeepSeek API configuration
-const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
-// AssemblyAI configuration
 const ASSEMBLYAI_API_KEY = process.env.ASSEMBLYAI_API_KEY;
-const UPLOAD_DIR = path.join(process.cwd(), 'uploads');
 
 // Initialize AssemblyAI client
 const assemblyai = new AssemblyAI({
@@ -48,47 +39,7 @@ async function uploadToCloudinary(file: Buffer, fileName: string, resourceType: 
   }
 }
 
-async function extractAudioFromVideo(videoPath: string): Promise<string> {
-  try {
-    const audioPath = videoPath.replace(/\.[^/.]+$/, '.wav');
-    
-    // Check if FFmpeg is available
-    const ffmpegPath = `${process.env.LOCALAPPDATA || process.env.USERPROFILE + '/AppData/Local'}/Microsoft/WinGet/Packages/Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe/ffmpeg-7.1.1-full_build/bin/ffmpeg.exe`;
-    
-    try {
-      const { stdout, stderr } = await execAsync(`"${ffmpegPath}" -version`);
-    } catch (error) {
-      console.warn('FFmpeg not found, trying system PATH');
-      try {
-        const { stdout, stderr } = await execAsync('ffmpeg -version');
-      } catch (pathError) {
-        console.warn('FFmpeg not found in system PATH either');
-        throw new Error('FFmpeg is not installed. Please install FFmpeg to enable audio transcription.');
-      }
-    }
-    
-    // Use FFmpeg to extract audio from video
-    const ffmpegCommand = `"${ffmpegPath}" -i "${videoPath}" -vn -acodec pcm_s16le -ar 16000 -ac 1 "${audioPath}" -y`;
-    
-    const { stdout, stderr } = await execAsync(ffmpegCommand);
-    
-    // FFmpeg writes progress info to stderr, so we need to check for actual errors
-    // Look for error patterns in stderr that indicate failure
-    if (stderr && (
-      stderr.includes('Error') || 
-      stderr.includes('error') || 
-      stderr.includes('Invalid') ||
-      stderr.includes('No such file') ||
-      stderr.includes('Permission denied')
-    )) {
-      throw new Error('Failed to extract audio from video');
-    }
-    
-    return audioPath;
-  } catch (error) {
-    throw error;
-  }
-}
+
 
 async function transcribeWithAssemblyAI(audioPath: string) {
   try {

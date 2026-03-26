@@ -1,66 +1,61 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { verifyToken } from '@/lib/auth';
-import { z } from 'zod';
+import { prisma } from "@/lib/prisma";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth.config";
+import { NextResponse } from "next/server";
 
-const GifUpdateSchema = z.object({
-  title: z.string().min(1).optional(),
-  description: z.string().optional(),
-  caption: z.string().optional(),
-  prompt: z.string().optional(),
-});
-
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
   try {
-    const auth = req.headers.get('authorization');
-    if (!auth) return NextResponse.json({ error: 'Missing token' }, { status: 401 });
-    const token = auth.replace('Bearer ', '');
-    const payload = verifyToken(token) as { userId: string };
-    const { id } = params;
-    const gif = await prisma.gif.findUnique({ where: { id } });
-    if (!gif || gif.userId !== payload.userId) {
-      return NextResponse.json({ error: 'GIF not found' }, { status: 404 });
+    const gif = await prisma.gif.findUnique({
+      where: { id: params.id },
+      include: { video: true, user: true }
+    });
+
+    if (!gif) {
+      return new NextResponse("Not Found", { status: 404 });
     }
-    return NextResponse.json({ gif });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 400 });
+
+    return NextResponse.json(gif);
+  } catch (error) {
+    console.error("Error fetching gif:", error);
+    return new NextResponse("Internal Server Error", { status: 500 });
   }
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.id) {
+    return new NextResponse("Unauthorized", { status: 401 });
+  }
+
   try {
-    const auth = req.headers.get('authorization');
-    if (!auth) return NextResponse.json({ error: 'Missing token' }, { status: 401 });
-    const token = auth.replace('Bearer ', '');
-    const payload = verifyToken(token) as { userId: string };
-    const { id } = params;
-    const gif = await prisma.gif.findUnique({ where: { id } });
-    if (!gif || gif.userId !== payload.userId) {
-      return NextResponse.json({ error: 'GIF not found' }, { status: 404 });
+    const gif = await prisma.gif.findUnique({
+      where: { id: params.id },
+      select: { userId: true }
+    });
+
+    if (!gif) {
+      return new NextResponse("Not Found", { status: 404 });
     }
-    await prisma.gif.delete({ where: { id } });
+
+    if (gif.userId !== session.user.id) {
+      return new NextResponse("Forbidden", { status: 403 });
+    }
+
+    await prisma.gif.delete({
+      where: { id: params.id }
+    });
+
     return new NextResponse(null, { status: 204 });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 400 });
+  } catch (error) {
+    console.error("Error deleting gif:", error);
+    return new NextResponse("Internal Server Error", { status: 500 });
   }
 }
-
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
-  try {
-    const auth = req.headers.get('authorization');
-    if (!auth) return NextResponse.json({ error: 'Missing token' }, { status: 401 });
-    const token = auth.replace('Bearer ', '');
-    const payload = verifyToken(token) as { userId: string };
-    const { id } = params;
-    const gif = await prisma.gif.findUnique({ where: { id } });
-    if (!gif || gif.userId !== payload.userId) {
-      return NextResponse.json({ error: 'GIF not found' }, { status: 404 });
-    }
-    const body = await req.json();
-    const data = GifUpdateSchema.parse(body);
-    const updated = await prisma.gif.update({ where: { id }, data });
-    return NextResponse.json({ gif: updated });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 400 });
-  }
-} 
+ 
