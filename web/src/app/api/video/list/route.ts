@@ -1,96 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '../../../../lib/prisma';
 
-async function analyzeTranscriptForCaptions(transcript: string, prompt: string) {
-  try {
-    // Use OpenRouter instead of direct DeepSeek API for better reliability
-    const openRouterEndpoint = 'https://openrouter.ai/api/v1/chat/completions';
-    
-    const deepSeekPrompt = `
-You are given a video transcript. Your task is:
-- Return 2-3 clip objects
-- Each clip must include start (number), end (number), and text (string)
-- Each clip should be 3–8 seconds long
-- Return valid JSON only: [{"start":3,"end":8,"text":"..."}]
 
-Transcript:
-${transcript}
-Prompt: "${prompt}"
-`;
-
-    const response = await fetch(openRouterEndpoint, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY || process.env.DEEPSEEK_API_KEY}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000',
-        'X-Title': 'AI-Gif-Creator'
-      },
-      body: JSON.stringify({
-        model: 'deepseek/deepseek-r1-0528-qwen3-8b:free', // Free model via OpenRouter
-        messages: [
-          { role: 'system', content: 'You are a helpful assistant.' },
-          { role: 'user', content: deepSeekPrompt }
-        ]
-      }),
-    });
-
-    const data = await response.json();
-    let content = data.choices?.[0]?.message?.content?.trim() || '';
-    
-    // Clean up the response
-    if (content.startsWith('```')) {
-      content = content.replace(/```json|```/g, '').trim();
-    }
-
-    let clips;
-    try {
-      const parsed = JSON.parse(content);
-      if (Array.isArray(parsed)) {
-        clips = parsed;
-      } else if (Array.isArray(parsed.clips)) {
-        clips = parsed.clips;
-      } else if (typeof parsed === 'object' && parsed !== null) {
-        clips = Object.values(parsed);
-      } else {
-        throw new Error('AI returned unrecognized format');
-      }
-    } catch (err) {
-      console.error(`❌ Failed to parse DeepSeek response. Raw content:\n${content}`);
-      
-      // Try to extract JSON using regex as fallback
-      const match = content.match(/\[\s*{[\s\S]*?}\s*\]/);
-      if (match) {
-        try {
-          const extractedClips = JSON.parse(match[0]);
-          if (Array.isArray(extractedClips)) {
-            clips = extractedClips;
-          } else {
-            throw new Error('Extracted content is not an array');
-          }
-        } catch (jsonError) {
-          console.error('Failed to parse extracted JSON:', jsonError);
-          throw new Error('Invalid response from DeepSeek');
-        }
-      } else {
-        throw new Error('Invalid response from DeepSeek');
-      }
-    }
-
-    // Convert clips to the expected format
-    const captions = clips.map((clip: any) => ({
-      text: clip.text || clip.caption || 'Unknown caption',
-      startTime: clip.start || clip.startTime || 0,
-      endTime: clip.end || clip.endTime || 0,
-      reason: `AI-generated caption matching: "${prompt}"`
-    }));
-
-    return captions;
-  } catch (error: any) {
-    console.error('DeepSeek analysis error:', error);
-    throw error;
-  }
-}
 
 // Function to check if a Cloudinary URL is still accessible
 async function isCloudinaryUrlAccessible(url: string): Promise<boolean> {
@@ -133,6 +44,36 @@ async function filterAccessibleVideos(videos: any[]) {
   return accessibleVideos;
 }
 
+// Format AssemblyAI words with start times (in ms) into a timestamped transcript
+function generateTimestampedText(words: any[]) {
+  if (!words || !Array.isArray(words) || words.length === 0) return null;
+  let result = '';
+  let wordsSinceLastStamp = 0;
+  
+  for (let i = 0; i < words.length; i++) {
+     const w = words[i];
+     const text = typeof w === 'string' ? w : w.text;
+     if (!text) continue;
+     
+     const prevWord = i > 0 ? (typeof words[i-1] === 'string' ? undefined : words[i-1]) : undefined;
+     const isStartOfSentence = prevWord && typeof prevWord === 'object' && prevWord.text && /[.?!]$/.test(prevWord.text);
+     
+     // Add timestamp at the start, or every new sentence, or every 15 words
+     if (i === 0 || isStartOfSentence || wordsSinceLastStamp > 15) {
+        if (typeof w === 'object' && typeof w.start === 'number') {
+           const s = Math.floor(w.start / 1000); // ms to sec
+           const m = Math.floor(s / 60).toString().padStart(2, '0');
+           const sec = (s % 60).toString().padStart(2, '0');
+           result += ` [${m}:${sec}] `;
+           wordsSinceLastStamp = 0;
+        }
+     }
+     result += text + ' ';
+     wordsSinceLastStamp++;
+  }
+  return result.trim().replace(/\s+/g, ' ');
+}
+
 export async function GET(req: NextRequest) {
   try {
     const videos = await prisma.video.findMany({
@@ -142,8 +83,24 @@ export async function GET(req: NextRequest) {
         gifs: true,
       },
     });
-    // Only keep videos with a Cloudinary URL
-    const cloudinaryVideos = videos.filter(v => v.url && v.url.startsWith('https://res.cloudinary.com/'));
+    
+    // Convert to timestamped transcripts
+    const processedVideos = videos.map(v => {
+      if (v.transcript) {
+        let tsText = null;
+        if (typeof v.transcript.words === 'string') {
+           try { tsText = generateTimestampedText(JSON.parse(v.transcript.words)); } catch(e) {}
+        } else if (Array.isArray(v.transcript.words)) {
+           tsText = generateTimestampedText(v.transcript.words);
+        }
+        if (tsText) {
+          v.transcript.fullText = tsText;
+        }
+      }
+      return v;
+    });
+
+    const cloudinaryVideos = processedVideos.filter(v => v.url && v.url.startsWith('https://res.cloudinary.com/'));
     
     console.log(`Found ${videos.length} total videos, ${cloudinaryVideos.length} accessible`);
     
@@ -152,42 +109,4 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: err.message }, { status: 400 });
   }
 }
-
-export async function POST(req: NextRequest) {
-  try {
-    const { videoId, prompt } = await req.json();
-    
-    if (!videoId || !prompt) {
-      return NextResponse.json({ error: 'Video ID and prompt are required' }, { status: 400 });
-    }
-
-    const video = await prisma.video.findUnique({
-      where: { id: videoId },
-      include: { transcript: true }
-    });
-
-    if (!video) {
-      return NextResponse.json({ error: 'Video not found' }, { status: 404 });
-    }
-
-    if (!video.transcript?.fullText) {
-      return NextResponse.json({ error: 'No transcript found for this video' }, { status: 400 });
-    }
-
-    // Analyze transcript to find caption-worthy lines
-    const captions = await analyzeTranscriptForCaptions(video.transcript.fullText, prompt);
-
-    return NextResponse.json({ 
-      videoId,
-      captions,
-      prompt
-    });
-
-  } catch (err: any) {
-    console.error('Analysis Error:', err);
-    return NextResponse.json({ 
-      error: 'Failed to analyze transcript',
-      details: err.message 
-    }, { status: 500 });
-  }
-} 
+

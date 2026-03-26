@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { Upload, Play, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
-import { Button } from './ui/Button';
 import VideoUpload from './VideoUpload';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface VideoData {
   id: string;
@@ -11,9 +11,7 @@ interface VideoData {
   url: string;
   status: string;
   createdAt: string;
-  transcript?: {
-    fullText: string;
-  };
+  transcript?: { fullText: string };
 }
 
 interface VideoSelectorProps {
@@ -27,182 +25,153 @@ export default function VideoSelector({ onVideoSelect, selectedVideoId }: VideoS
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showUploadForm, setShowUploadForm] = useState(false);
-  const [isCleaning, setIsCleaning] = useState(false);
 
-  // Fetch videos on component mount
-  useEffect(() => {
-    fetchVideos();
-  }, []);
+  useEffect(() => { fetchVideos(); }, []);
 
   const fetchVideos = async () => {
     setIsLoading(true);
     try {
       const response = await fetch('/api/video/list');
       const data = await response.json();
-      
-      if (response.ok) {
-        setVideos(data.videos || []);
-      } else {
-        setError('Failed to fetch videos');
-      }
-    } catch (err) {
-      setError('Failed to fetch videos');
-    } finally {
-      setIsLoading(false);
-    }
+      if (response.ok) setVideos(data.videos || []);
+      else setError('Failed to fetch videos');
+    } catch { setError('Failed to fetch videos'); }
+    finally { setIsLoading(false); }
   };
 
   const handleVideoUpload = async (file: File) => {
     setIsUploading(true);
     setError(null);
-
     try {
       const formData = new FormData();
       formData.append('video', file);
-
-      const response = await fetch('/api/video/upload', {
-        method: 'POST',
-        body: formData,
-      });
-
+      const response = await fetch('/api/video/upload', { method: 'POST', body: formData });
       const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to upload video');
-      }
-
-      // Add new video to the list
-      const newVideo = {
-        ...data.video,
-        transcript: data.transcript
-      };
-      
+      if (!response.ok) throw new Error(data.error || 'Failed to upload video');
+      const newVideo = { ...data.video, transcript: data.transcript };
       setVideos(prev => [newVideo, ...prev]);
-      
-      // Auto-select the newly uploaded video
       onVideoSelect(newVideo);
-      
-      // Hide upload form
       setShowUploadForm(false);
-      
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setIsUploading(false);
-    }
+    } catch (err: any) { setError(err.message); }
+    finally { setIsUploading(false); }
   };
 
-  const getStatusIcon = (status: string) => {
+  const getStatusConfig = (status: string) => {
     switch (status) {
-      case 'completed':
-        return <CheckCircle className="w-4 h-4 text-green-500" />;
-      case 'processing':
-        return <RefreshCw className="w-4 h-4 text-blue-500 animate-spin" />;
-      case 'transcript_failed':
-        return <AlertCircle className="w-4 h-4 text-yellow-500" />;
-      default:
-        return <AlertCircle className="w-4 h-4 text-gray-500" />;
-    }
-  };
-
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return 'Ready';
-      case 'processing':
-        return 'Processing';
-      case 'transcript_failed':
-        return 'Transcript Failed';
-      default:
-        return 'Unknown';
+      case 'completed': return { icon: <CheckCircle className="w-3.5 h-3.5" />, label: 'Ready', color: 'text-green-400' };
+      case 'processing': return { icon: <RefreshCw className="w-3.5 h-3.5 animate-spin" />, label: 'Processing', color: 'text-blue-400' };
+      case 'transcript_failed': return { icon: <AlertCircle className="w-3.5 h-3.5" />, label: 'No Transcript', color: 'text-yellow-400' };
+      default: return { icon: <AlertCircle className="w-3.5 h-3.5" />, label: 'Unknown', color: 'text-slate-500' };
     }
   };
 
   return (
-    <div className="space-y-3 sm:space-y-4">
-      {/* Header with Upload Button */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0">
-        <h3 className="text-base sm:text-lg font-semibold text-gray-900">Select Video</h3>
-        <Button
+    <div className="space-y-3">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <p className="section-label">Your Videos</p>
+        <button
           onClick={() => setShowUploadForm(!showUploadForm)}
-          className="flex items-center gap-2 text-xs sm:text-base"
+          className="btn-glass text-xs px-3 py-1.5"
         >
-          <Upload className="w-4 h-4" />
+          <Upload className="w-3 h-3" />
           {showUploadForm ? 'Cancel' : 'Upload New'}
-        </Button>
+        </button>
       </div>
 
-      {/* Upload Form */}
-      {showUploadForm && (
-        <div className="bg-gray-50 rounded-lg p-2 sm:p-4 border">
-          <VideoUpload onUpload={handleVideoUpload} />
-          {isUploading && (
-            <div className="mt-2 sm:mt-4 text-xs sm:text-sm text-blue-600 flex items-center gap-2">
-              <RefreshCw className="w-4 h-4 animate-spin" />
-              Uploading and processing video...
+      {/* Upload form */}
+      <AnimatePresence>
+        {showUploadForm && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden"
+          >
+            <div className="p-3 rounded-xl" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
+              <VideoUpload onUpload={handleVideoUpload} />
+              {isUploading && (
+                <div className="mt-3 flex items-center gap-2 text-xs text-blue-400">
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  Uploading and transcribing...
+                </div>
+              )}
             </div>
-          )}
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {/* Error Display */}
+      {/* Error */}
       {error && (
-        <div className="p-2 sm:p-3 bg-red-50 border border-red-200 rounded-md">
-          <p className="text-red-600 text-xs sm:text-sm">{error}</p>
+        <div className="text-xs text-red-400 p-2.5 rounded-xl flex items-center gap-2"
+          style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.15)' }}>
+          <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />{error}
         </div>
       )}
 
-      {/* Video List */}
-      <div className="space-y-2">
+      {/* Refresh button */}
+      <button onClick={fetchVideos} className="btn-glass text-xs px-3 py-1.5 w-full justify-center">
+        <RefreshCw className={`w-3 h-3 ${isLoading ? 'animate-spin' : ''}`} />
+        {isLoading ? 'Loading...' : 'Refresh Library'}
+      </button>
+
+      {/* Video list */}
+      <div className="space-y-1.5 max-h-64 overflow-y-auto pr-0.5">
         {isLoading ? (
-          <div className="text-center py-6 sm:py-8 text-gray-500">
-            <RefreshCw className="w-8 h-8 mx-auto mb-2 animate-spin" />
-            <p className="text-xs sm:text-base">Loading videos...</p>
+          <div className="text-center py-8 text-slate-600">
+            <RefreshCw className="w-6 h-6 mx-auto mb-2 animate-spin text-slate-700" />
+            <p className="text-xs">Loading videos...</p>
           </div>
         ) : videos.length === 0 ? (
-          <div className="text-center py-6 sm:py-8 text-gray-500">
-            <Upload className="w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-4 text-gray-300" />
-            <p className="text-xs sm:text-base">No videos uploaded yet</p>
-            <p className="text-xs sm:text-sm">Upload your first video to get started</p>
+          <div className="text-center py-8">
+            <Upload className="w-8 h-8 mx-auto mb-3 text-slate-700" />
+            <p className="text-xs text-slate-500">No videos yet</p>
+            <p className="text-xs text-slate-600 mt-0.5">Upload or import from YouTube above</p>
           </div>
         ) : (
-          videos.map((video) => (
-            <div
-              key={video.id}
-              className={`p-2 sm:p-3 border rounded-lg cursor-pointer transition-all ${
-                selectedVideoId === video.id
-                  ? 'border-blue-500 bg-blue-50'
-                  : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-              }`}
-            >
-              <div className="flex items-center gap-2 sm:gap-3">
-                <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gray-100 rounded-lg flex items-center justify-center">
-                  <Play className="w-4 h-4 text-gray-600" />
+          videos.map((video, i) => {
+            const { icon, label, color } = getStatusConfig(video.status);
+            const isSelected = selectedVideoId === video.id;
+            return (
+              <motion.div
+                key={video.id}
+                initial={{ opacity: 0, x: -8 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: i * 0.04 }}
+                onClick={() => onVideoSelect(video)}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-200"
+                style={{
+                  background: isSelected ? 'rgba(139,92,246,0.12)' : 'rgba(255,255,255,0.03)',
+                  border: isSelected ? '1px solid rgba(139,92,246,0.35)' : '1px solid rgba(255,255,255,0.06)',
+                }}
+              >
+                {/* Thumbnail icon */}
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                  style={{ background: isSelected ? 'rgba(139,92,246,0.2)' : 'rgba(255,255,255,0.06)' }}>
+                  <Play className={`w-4 h-4 ${isSelected ? 'text-purple-400' : 'text-slate-500'}`} />
                 </div>
-                <div
-                  className="flex-1 min-w-0"
-                  onClick={() => onVideoSelect(video)}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <h4 className="font-medium text-gray-900 truncate text-xs sm:text-base">
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                  <p className={`text-xs font-medium truncate ${isSelected ? 'text-white' : 'text-slate-300'}`}>
                     {video.title}
-                  </h4>
-                  <div className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm text-gray-500">
-                    {getStatusIcon(video.status)}
-                    <span>{getStatusText(video.status)}</span>
-                    {video.transcript && (
-                      <span>• Transcript available</span>
-                    )}
+                  </p>
+                  <div className={`flex items-center gap-1.5 mt-0.5 text-[10px] ${color}`}>
+                    {icon}
+                    <span>{label}</span>
+                    {video.transcript && <span className="text-slate-600">• Transcript ✓</span>}
                   </div>
                 </div>
-                <div className="text-xs text-gray-400">
-                  {new Date(video.createdAt).toLocaleDateString()}
-                </div>
-              </div>
-            </div>
-          ))
+                {/* Date */}
+                <p className="text-[10px] text-slate-600 flex-shrink-0">
+                  {new Date(video.createdAt).toLocaleDateString('en', { month: 'short', day: 'numeric' })}
+                </p>
+                {/* Selected indicator */}
+                {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-purple-400 flex-shrink-0" />}
+              </motion.div>
+            );
+          })
         )}
       </div>
     </div>
   );
-} 
+}

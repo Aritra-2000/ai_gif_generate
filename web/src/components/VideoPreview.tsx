@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Scissors, Download, Play, Pause } from 'lucide-react'
+import { Scissors, Download, Play, Pause, Volume2, VolumeX, Maximize, Minimize } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
 
 interface VideoPreviewProps {
   file?: File | null
   videoUrl?: string
+  seekTo?: number | null
 }
 
-export default function VideoPreview({ file, videoUrl }: VideoPreviewProps) {
+export default function VideoPreview({ file, videoUrl, seekTo }: VideoPreviewProps) {
   const [url, setUrl] = useState<string>('')
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -17,7 +19,24 @@ export default function VideoPreview({ file, videoUrl }: VideoPreviewProps) {
   const [trimStart, setTrimStart] = useState(0)
   const [trimEnd, setTrimEnd] = useState(0)
   const [showTrimControls, setShowTrimControls] = useState(false)
+  const [isMuted, setIsMuted] = useState(false)
+  const [volume, setVolume] = useState(1)
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const [showUI, setShowUI] = useState(true)
   const videoRef = useRef<HTMLVideoElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const uiTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  
+  // Handle external seek requests
+  useEffect(() => {
+    if (seekTo !== undefined && seekTo !== null && videoRef.current) {
+      videoRef.current.currentTime = seekTo;
+      if (videoRef.current.paused) {
+        videoRef.current.play().catch(e => console.log('Play interrupted:', e));
+        setIsPlaying(true);
+      }
+    }
+  }, [seekTo]);
 
   useEffect(() => {
     console.log('VideoPreview useEffect triggered:', { file, videoUrl })
@@ -158,6 +177,53 @@ export default function VideoPreview({ file, videoUrl }: VideoPreviewProps) {
     }
   }
 
+  const handleMuteToggle = () => {
+    if (videoRef.current) {
+      videoRef.current.muted = !isMuted
+      setIsMuted(!isMuted)
+    }
+  }
+
+  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = parseFloat(e.target.value)
+    setVolume(val)
+    if (videoRef.current) {
+      videoRef.current.volume = val
+      videoRef.current.muted = val === 0
+      setIsMuted(val === 0)
+    }
+  }
+
+  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = parseFloat(e.target.value)
+    setCurrentTime(val)
+    if (videoRef.current) {
+      videoRef.current.currentTime = val
+    }
+  }
+
+  const toggleFullscreen = () => {
+    if (!containerRef.current) return
+    
+    if (!document.fullscreenElement) {
+      containerRef.current.requestFullscreen().catch(err => {
+        console.error(`Error attempting to enable full-screen mode: ${err.message}`)
+      })
+      setIsFullscreen(true)
+    } else {
+      document.exitFullscreen()
+      setIsFullscreen(false)
+    }
+  }
+
+  const handleMouseMove = () => {
+    setShowUI(true)
+    if (uiTimeoutRef.current) clearTimeout(uiTimeoutRef.current)
+    uiTimeoutRef.current = setTimeout(() => {
+      if (isPlaying) setShowUI(false)
+    }, 3000)
+  }
+
   const handleDownload = () => {
     if (url) {
       const link = document.createElement('a')
@@ -249,12 +315,19 @@ export default function VideoPreview({ file, videoUrl }: VideoPreviewProps) {
 
   return (
     <div className="w-full">
-      <div className="relative aspect-video bg-black rounded-lg overflow-hidden">
+      <div 
+        ref={containerRef}
+        className="relative aspect-video bg-black rounded-2xl overflow-hidden group shadow-2xl border border-white/5"
+        onMouseMove={handleMouseMove}
+        onMouseLeave={() => isPlaying && setShowUI(false)}
+      >
         <video
           ref={videoRef}
           src={url}
-          controls
           className="w-full h-full object-contain"
+          onClick={handlePlayPause}
+          onPlay={() => setIsPlaying(true)}
+          onPause={() => setIsPlaying(false)}
           onError={handleVideoError}
           onLoadedData={handleVideoLoad}
           onCanPlay={handleVideoCanPlay}
@@ -262,29 +335,105 @@ export default function VideoPreview({ file, videoUrl }: VideoPreviewProps) {
           onTimeUpdate={handleTimeUpdate}
         />
         
-        {/* Video Controls Overlay */}
-        <div className="absolute bottom-4 left-4 right-4 flex items-center justify-center space-x-2">
-          <button
-            onClick={handlePlayPause}
-            className="bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-70 transition-all"
-          >
-            {isPlaying ? <Pause size={16} /> : <Play size={16} />}
-          </button>
-          <button
-            onClick={handleDownload}
-            className="bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-70 transition-all"
-            title="Download Video"
-          >
-            <Download size={16} />
-          </button>
-          <button
-            onClick={handleTrim}
-            className="bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-70 transition-all"
-            title="Trim Video"
-          >
-            <Scissors size={16} />
-          </button>
-        </div>
+        {/* Large Play Center Overlay */}
+        <AnimatePresence>
+          {!isPlaying && !isLoading && !error && (
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              className="absolute inset-0 flex items-center justify-center pointer-events-none"
+            >
+              <div className="w-20 h-20 rounded-full bg-white/10 backdrop-blur-xl border border-white/20 flex items-center justify-center shadow-2xl">
+                <Play className="w-10 h-10 text-white fill-white ml-1" />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Custom Controls Bar */}
+        <AnimatePresence>
+          {showUI && (
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 10 }}
+              className="absolute bottom-0 inset-x-0 p-4 pt-10 bg-gradient-to-t from-black/80 via-black/40 to-transparent"
+            >
+              {/* Progress Bar */}
+              <div className="relative group/progress mb-4">
+                <div 
+                  className="absolute top-1/2 -translate-y-1/2 h-1 w-full bg-white/20 rounded-full overflow-hidden"
+                >
+                  <div 
+                    className="h-full bg-gradient-to-r from-purple-500 to-blue-500 rounded-full"
+                    style={{ width: `${(currentTime / (duration || 1)) * 100}%` }}
+                  />
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max={duration || 0}
+                  value={currentTime}
+                  onChange={handleSeek}
+                  className="absolute inset-0 w-full h-1 opacity-0 cursor-pointer"
+                />
+              </div>
+
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handlePlayPause}
+                    className="p-2 text-white hover:bg-white/10 rounded-lg transition-colors"
+                  >
+                    {isPlaying ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" />}
+                  </button>
+
+                  {/* Volume */}
+                  <div className="flex items-center gap-2 group/volume">
+                    <button
+                      onClick={handleMuteToggle}
+                      className="p-2 text-white hover:bg-white/10 rounded-lg transition-colors"
+                    >
+                      {isMuted ? <VolumeX size={20} /> : <Volume2 size={20} />}
+                    </button>
+                    <div className="w-0 group-hover/volume:w-20 transition-all duration-300 overflow-hidden flex items-center">
+                       <input
+                         type="range"
+                         min="0"
+                         max="1"
+                         step="0.01"
+                         value={volume}
+                         onChange={handleVolumeChange}
+                         className="w-full h-1 bg-white/20 rounded-full accent-white"
+                       />
+                    </div>
+                  </div>
+
+                  <div className="text-xs font-mono text-slate-300 tabular-nums">
+                    {formatTime(currentTime)} / {formatTime(duration)}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleDownload}
+                    className="p-2 text-white hover:bg-white/10 rounded-lg transition-colors"
+                    title="Download Video"
+                  >
+                    <Download size={18} />
+                  </button>
+                  <button
+                    onClick={toggleFullscreen}
+                    className="p-2 text-white hover:bg-white/10 rounded-lg transition-colors"
+                  >
+                    {isFullscreen ? <Minimize size={18} /> : <Maximize size={18} />}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Trim Controls */}

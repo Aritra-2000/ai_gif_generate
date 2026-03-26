@@ -49,10 +49,10 @@ async function getVideoInfo(publicId: string) {
   }
 }
 
-function getCloudinaryGifUrl(cloudName: string, publicId: string, start: number, end: number, videoInfo?: any) {
-  // More conservative time handling when duration is unknown
-  const startTime = Math.max(0, Math.floor(start));
-  let endTime = Math.ceil(end);
+function getCloudinaryGifUrl(cloudName: string, publicId: string, start: number, end: number, videoInfo?: any, captionText?: string) {
+  // Use toFixed(2) to retain fractional accuracy and avoid math snap errors
+  const startTime = Math.max(0, Number(Number(start).toFixed(2)));
+  let endTime = Number(Number(end).toFixed(2));
   
   // If we don't have duration info, cap the end time more conservatively
   if (!videoInfo?.duration) {
@@ -67,18 +67,26 @@ function getCloudinaryGifUrl(cloudName: string, publicId: string, start: number,
     return null;
   }
   
-  // Simplified transformation for better compatibility
-  const transformations = [
-    `so_${startTime}`,
-    `eo_${endTime}`,
+  // Split transformations into TWO chained layers!
+  // Layer 1: Trim the video FIRST. If we mix so_ and f_gif in the same block, 
+  // Cloudinary truncates the video to 10s *before* seeking, ruining any timestamp > 10s!
+  const trimLayer = `so_${startTime},eo_${endTime}`;
+  
+  // Layer 2: Convert the trimmed chunk to a GIF, resize, and add text.
+  const stylingLayer = [
     'f_gif',
     'fl_animated',
     'w_480',
     'q_auto:good',
-    'fps_8' // Lower FPS for better compatibility
+    'fps_8'
   ];
   
-  return `https://res.cloudinary.com/${cloudName}/video/upload/${transformations.join(',')}/${publicId}.gif`;
+  if (captionText) {
+    const safeText = encodeURIComponent(captionText.replace(/\n/g, ' ')).replace(/%2C/ig, '%252C').replace(/%2F/ig, '%252F');
+    stylingLayer.push(`co_white,l_text:Arial_28_bold:${safeText},g_south,y_20`);
+  }
+  
+  return `https://res.cloudinary.com/${cloudName}/video/upload/${trimLayer}/${stylingLayer.join(',')}/${publicId}.gif`;
 }
 
 // Generate GIF using Cloudinary's video-to-GIF transformation
@@ -101,6 +109,17 @@ async function generateGifFromVideo(videoUrl: string, caption: CaptionData, publ
           width: 480,
           height: 'auto',
           crop: 'scale',
+        },
+        {
+          color: 'white',
+          overlay: {
+            font_family: 'Arial',
+            font_size: 28,
+            font_weight: 'bold',
+            text: caption.text
+          },
+          gravity: 'south',
+          y: 20
         }
       ],
       overwrite: true,
@@ -207,15 +226,24 @@ export async function POST(req: NextRequest) {
       try {
         let gifUrl;
         
-        // Try URL transformation first (faster)
-        gifUrl = getCloudinaryGifUrl(cloudName, publicId, caption.startTime, caption.endTime, videoInfo);
-        
-        if (!gifUrl) {
-          // Fallback to upload transformation
+        // Force the precise upload transformation FIRST. 
+        // URL-based transformations (`so_`) snap to nearest keyframes, which ruins GIF timings
+        // for heavily compressed YouTube/Instagram videos where keyframes are far apart!
+        try {
+          console.log(`Generating precise SDK-sliced GIF from ${caption.startTime}s to ${caption.endTime}s...`);
           gifUrl = await withTimeout(
             generateGifFromVideo(video.url, caption, publicId),
-            20000 // 20 second timeout per GIF
+            25000 // Give it 25 seconds because precision slicing takes a bit of time
           );
+        } catch (uploadError) {
+          console.error("Precise slice upload failed, falling back to fast URL string:", uploadError);
+          // Fallback to URL transformation only if the backend upload times out or fails
+          gifUrl = getCloudinaryGifUrl(cloudName, publicId, caption.startTime, caption.endTime, videoInfo, caption.text);
+        }
+
+        if (!gifUrl) {
+          errors.push(`Caption ${i}: Failed to generate GIF URL (duration too short)`);
+          continue;
         }
 
         // Quick validation (don't wait for full response)
@@ -234,9 +262,12 @@ export async function POST(req: NextRequest) {
           },
         });
 
+        console.log(`Successfully persisted GIF ${gif.id} to DB`);
         generatedGifs.push({
           id: gif.id,
           url: gifUrl,
+          caption: caption.text,
+          reason: caption.reason,
           startTime: caption.startTime,
           endTime: caption.endTime,
           duration: duration
@@ -248,6 +279,8 @@ export async function POST(req: NextRequest) {
         continue;
       }
     }
+
+    console.log(`Generation complete. Final count: ${generatedGifs.length} GIFs successfully created in Database.`);
 
     if (generatedGifs.length === 0) {
       return NextResponse.json({
